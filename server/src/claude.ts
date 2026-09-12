@@ -1,4 +1,4 @@
-import { callModel, MODEL_PROVIDER } from "./modelProvider";
+import { callModel, getModelProvider } from "./modelProvider";
 
 export interface VerseMatch {
   reference: string;
@@ -294,10 +294,10 @@ export async function matchVerseWithClaude(situation: string): Promise<VerseMatc
       return retryParsed;
     }
 
-    console.warn(`${MODEL_PROVIDER} response failed validation twice, using fallback verses.`);
+    console.warn(`${getModelProvider()} response failed validation twice, using fallback verses.`);
     return fallbackMatch(situation);
   } catch (err) {
-    console.error(`Verse match failed via ${MODEL_PROVIDER}, using fallback:`, err);
+    console.error(`Verse match failed via ${getModelProvider()}, using fallback:`, err);
     return fallbackMatch(situation);
   }
 }

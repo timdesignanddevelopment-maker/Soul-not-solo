@@ -3,11 +3,11 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { verseRouter } from "./routes/verse";
 import { conversationRouter } from "./routes/conversation";
-import { MODEL_PROVIDER, warnIfMisconfigured } from "./modelProvider";
+import { getModelProvider, warnIfMisconfigured } from "./modelProvider";
 
 dotenv.config();
 
-console.log(`AI provider: ${MODEL_PROVIDER}`);
+console.log(`AI provider: ${getModelProvider()}`);
 warnIfMisconfigured();
 
 const app = express();
