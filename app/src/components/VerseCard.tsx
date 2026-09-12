@@ -25,7 +25,7 @@ export function VerseCard({ reference, text, encouragement, width, onPress }: Pr
         colors={["#f6ecd6", "#eeddb8", "#e3cc9a"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
       />
       <View style={styles.innerBorder} pointerEvents="none" />
 

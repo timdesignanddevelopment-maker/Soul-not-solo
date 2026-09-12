@@ -14,6 +14,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import ViewShot from "react-native-view-shot";
+import type { ViewShotRef } from "react-native-view-shot";
 import { VerseCard } from "@/components/VerseCard";
 import { shareVerse } from "@/lib/shareImage";
 import { parseReference } from "@/lib/parseReference";
@@ -40,7 +41,7 @@ export default function RevealScreen() {
     }
   }, [params.cards]);
 
-  const shotRefs = useRef<(ViewShot | null)[]>([]);
+  const shotRefs = useRef<(ViewShotRef | null)[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
@@ -88,7 +89,7 @@ export default function RevealScreen() {
 
   return (
     <View style={styles.flex}>
-      <LinearGradient colors={["#2b2013", "#1c140c", "#0e0a06"]} style={StyleSheet.absoluteFillObject} />
+      <LinearGradient colors={["#2b2013", "#1c140c", "#0e0a06"]} style={StyleSheet.absoluteFill} />
       <View style={styles.pageLines} pointerEvents="none">
         {Array.from({ length: 14 }).map((_, i) => (
           <View key={i} style={[styles.pageLine, { opacity: 0.05 + (i % 3) * 0.02 }]} />
@@ -170,7 +171,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyText: { color: "#c9bba7", fontSize: 15 },
   pageLines: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: "space-evenly",
     paddingVertical: 60,
   },
