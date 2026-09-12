@@ -3,21 +3,12 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { verseRouter } from "./routes/verse";
 import { conversationRouter } from "./routes/conversation";
+import { MODEL_PROVIDER, warnIfMisconfigured } from "./modelProvider";
 
 dotenv.config();
 
-const modelProvider = process.env.MODEL_PROVIDER === "nim" ? "nim" : "anthropic";
-console.log(`Verse-matching provider: ${modelProvider}`);
-
-if (modelProvider === "nim" && !process.env.NVIDIA_NIM_API_KEY) {
-  console.warn(
-    "MODEL_PROVIDER=nim but NVIDIA_NIM_API_KEY is not set — verse matching will always fall back to the built-in keyword list."
-  );
-} else if (modelProvider === "anthropic" && !process.env.ANTHROPIC_API_KEY) {
-  console.warn(
-    "ANTHROPIC_API_KEY is not set — verse matching will always fall back to the built-in keyword list. Copy .env.example to .env and add your key."
-  );
-}
+console.log(`AI provider: ${MODEL_PROVIDER}`);
+warnIfMisconfigured();
 
 const app = express();
 app.use(cors());

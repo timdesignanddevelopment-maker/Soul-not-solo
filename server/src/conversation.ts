@@ -1,7 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const MODEL = process.env.CLAUDE_MODEL ?? "claude-haiku-4-5-20251001";
+import { callModel } from "./modelProvider";
 
 export interface ConversationTurn {
   role: "user" | "assistant";
@@ -42,13 +39,6 @@ Respond with ONLY a JSON object (no other text, no markdown fences) in exactly t
 
 The two suggestions should be genuinely useful next steps given what was just said, phrased as something the person would tap to say themselves (first person, under 8 words each).`;
 
-function extractText(message: Anthropic.Message): string {
-  return message.content
-    .filter((block): block is Anthropic.TextBlock => block.type === "text")
-    .map((block) => block.text)
-    .join("");
-}
-
 function parseAndValidate(raw: string): ConversationReply | null {
   try {
     const jsonStart = raw.indexOf("{");
@@ -78,19 +68,13 @@ export async function continueConversation(
 ): Promise<ConversationReply> {
   try {
     const contextMessage = `Original situation: "${situation}"\n\nNew message: "${message}"`;
-    const messages: Anthropic.MessageParam[] = [
+    const messages = [
       ...history.map((turn) => ({ role: turn.role, content: turn.content })),
-      { role: "user", content: contextMessage },
+      { role: "user" as const, content: contextMessage },
     ];
 
-    const response = await anthropic.messages.create({
-      model: MODEL,
-      max_tokens: 500,
-      system: CONVERSATION_SYSTEM_PROMPT,
-      messages,
-    });
-
-    const parsed = parseAndValidate(extractText(response));
+    const text = await callModel(CONVERSATION_SYSTEM_PROMPT, messages, 500);
+    const parsed = parseAndValidate(text);
     return parsed ?? FALLBACK_REPLY;
   } catch (err) {
     console.error("Conversation follow-up failed, using fallback:", err);

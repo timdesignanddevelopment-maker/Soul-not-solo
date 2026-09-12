@@ -1,24 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
-import OpenAI from "openai";
-
-// Temporary testing toggle: set MODEL_PROVIDER=nim in .env to route verse
-// matching through NVIDIA NIM's free OpenAI-compatible endpoint instead of
-// Claude, for pre-launch testing without spending Anthropic credits. Leave
-// unset (or "anthropic") for production — that's the default.
-const MODEL_PROVIDER = process.env.MODEL_PROVIDER === "nim" ? "nim" : "anthropic";
-
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const MODEL = process.env.CLAUDE_MODEL ?? "claude-haiku-4-5-20251001";
-
-// Falls back to a placeholder so construction never throws when the key is
-// unset (matching how the Anthropic client behaves) — an actual request
-// without a real key fails naturally at call time and is caught below,
-// same as the Anthropic path.
-const nim = new OpenAI({
-  apiKey: process.env.NVIDIA_NIM_API_KEY ?? "unset",
-  baseURL: "https://integrate.api.nvidia.com/v1",
-});
-const NIM_MODEL = "deepseek-ai/deepseek-v4-pro";
+import { callModel, MODEL_PROVIDER } from "./modelProvider";
 
 export interface VerseMatch {
   reference: string;
@@ -270,37 +250,6 @@ Critical: match the EMOTIONAL REGISTER of the situation, not just its topic. Som
 ${REFERENCE_BANK}
 
 Every reference must be real and verifiable — never invent one. Draw on the bank above as a strong starting point, but use your own knowledge of scripture too when a better-fitting passage exists.`;
-
-function extractText(message: Anthropic.Message): string {
-  return message.content
-    .filter((block): block is Anthropic.TextBlock => block.type === "text")
-    .map((block) => block.text)
-    .join("");
-}
-
-type ChatMessage = { role: "user" | "assistant"; content: string };
-
-// The only part that differs between providers: sending the system prompt +
-// conversation and getting raw text back. Prompt-building, parsing, retry,
-// and caching logic in matchVerseWithClaude are unchanged and provider-agnostic.
-async function callModel(system: string, messages: ChatMessage[]): Promise<string> {
-  if (MODEL_PROVIDER === "nim") {
-    const response = await nim.chat.completions.create({
-      model: NIM_MODEL,
-      max_tokens: 600,
-      messages: [{ role: "system", content: system }, ...messages],
-    });
-    return response.choices[0]?.message?.content ?? "";
-  }
-
-  const response = await anthropic.messages.create({
-    model: MODEL,
-    max_tokens: 600,
-    system,
-    messages,
-  });
-  return extractText(response);
-}
 
 // Repeat situations (two people typing near-identical things, or one person
 // resubmitting) shouldn't cost a second API call. Keyed on normalized text;

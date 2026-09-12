@@ -38,9 +38,12 @@ npm install
 cp .env.example .env
 ```
 
-Edit `server/.env` and set `ANTHROPIC_API_KEY` to a real key (get one at
-https://console.anthropic.com). Without it, verse matching silently falls
-back to a small built-in keyword list instead of calling Claude.
+Edit `server/.env` and set `NVIDIA_NIM_API_KEY` to a real key (get one free at
+https://build.nvidia.com — this is the default, production AI provider for
+both verse matching and the follow-up conversation). Without it, the AI calls
+silently fall back to built-in canned content instead of calling the model.
+Setting `MODEL_PROVIDER=anthropic` plus `ANTHROPIC_API_KEY` routes through
+Claude instead, if you ever want that.
 
 ```bash
 npm run dev

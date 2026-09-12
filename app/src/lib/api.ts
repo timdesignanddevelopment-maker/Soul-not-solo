@@ -1,5 +1,5 @@
-// Client for our own backend, which is the only thing allowed to hold the
-// Anthropic API key. Set EXPO_PUBLIC_BACKEND_URL in app/.env when the backend
+// Client for our own backend, which is the only thing allowed to hold the AI
+// provider's API key. Set EXPO_PUBLIC_BACKEND_URL in app/.env when the backend
 // isn't running on localhost (e.g. your dev machine's LAN IP for a physical
 // device, or a deployed URL later).
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL ?? "http://localhost:4000";
