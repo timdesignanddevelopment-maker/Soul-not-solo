@@ -1,11 +1,13 @@
 FROM node:24-alpine
 
-WORKDIR /app
+WORKDIR /app/server
 
 COPY server/package*.json ./
 RUN npm install
 
-COPY server/ ./
+COPY server/src ./src
+COPY server/tsconfig.json ./
+
 RUN npm run build
 
 EXPOSE 4000
