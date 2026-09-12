@@ -50,7 +50,9 @@ export default function InputScreen() {
     } catch (err) {
       console.error(err);
       setError(
-        "Couldn't reach the verse-matching service. Check that the backend is running and try again."
+        err instanceof Error
+          ? err.message
+          : "Couldn't reach the verse-matching service. Check that the backend is running and try again."
       );
     } finally {
       setLoading(false);

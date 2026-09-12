@@ -1,5 +1,8 @@
 // Client for bible-api.com — free, no API key, public-domain translations.
+import { fetchWithTimeout } from "./fetchWithTimeout";
+
 const BASE_URL = "https://bible-api.com";
+const TIMEOUT_MS = 20000;
 const DEFAULT_TRANSLATION = "web";
 
 export interface BibleVerse {
@@ -23,7 +26,7 @@ async function fetchPassage(
   translation: string = DEFAULT_TRANSLATION
 ): Promise<BiblePassage> {
   const url = `${BASE_URL}/${encodeURIComponent(reference)}?translation=${translation}`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url, {}, TIMEOUT_MS);
   if (!res.ok) {
     throw new Error(`Failed to fetch "${reference}" (${res.status})`);
   }

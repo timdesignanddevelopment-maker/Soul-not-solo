@@ -59,7 +59,11 @@ export default function ConversationScreen() {
       setSuggestions(result.suggestions ?? []);
     } catch (err) {
       console.error(err);
-      setError("Couldn't reach the server. Check that the backend is running and try again.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Couldn't reach the server. Check that the backend is running and try again."
+      );
     } finally {
       setLoading(false);
       requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
@@ -105,7 +109,9 @@ export default function ConversationScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.suggestions}>
           {suggestions.map((suggestion, i) => (
             <Pressable key={i} style={styles.chip} onPress={() => send(suggestion)}>
-              <Text style={styles.chipText}>{suggestion}</Text>
+              <Text style={styles.chipText} numberOfLines={1} ellipsizeMode="tail">
+                {suggestion}
+              </Text>
             </Pressable>
           ))}
         </ScrollView>
@@ -162,6 +168,7 @@ const styles = StyleSheet.create({
   error: { color: "#e07a5f", fontSize: 13, textAlign: "center", marginTop: 8 },
   suggestions: { paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
   chip: {
+    maxWidth: 260,
     borderWidth: 1,
     borderColor: "#a9873f",
     borderRadius: 999,

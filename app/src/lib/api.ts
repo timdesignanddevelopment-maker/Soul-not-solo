@@ -2,7 +2,14 @@
 // provider's API key. Set EXPO_PUBLIC_BACKEND_URL in app/.env when the backend
 // isn't running on localhost (e.g. your dev machine's LAN IP for a physical
 // device, or a deployed URL later).
+import { fetchWithTimeout } from "./fetchWithTimeout";
+
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL ?? "http://localhost:4000";
+
+// A free-tier backend can take 50+ seconds to wake up from being idle, on
+// top of the AI call itself — 60s covers a cold start plus a slow response
+// while still eventually giving the user an error to retry.
+const BACKEND_TIMEOUT_MS = 60000;
 
 export interface VerseMatch {
   reference: string;
@@ -14,11 +21,15 @@ export interface VerseMatch {
 // situation (not just one reflexive pick), so the app can present them as
 // swipeable cards.
 export async function matchVerse(situation: string): Promise<VerseMatch[]> {
-  const res = await fetch(`${BACKEND_URL}/api/verse`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ situation }),
-  });
+  const res = await fetchWithTimeout(
+    `${BACKEND_URL}/api/verse`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ situation }),
+    },
+    BACKEND_TIMEOUT_MS
+  );
   if (!res.ok) {
     const body = await res.json().catch(() => null);
     throw new Error(body?.error ?? `Backend error (${res.status})`);
@@ -44,11 +55,15 @@ export async function continueConversation(
   history: ConversationTurn[],
   message: string
 ): Promise<ConversationReply> {
-  const res = await fetch(`${BACKEND_URL}/api/conversation`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ situation, history, message }),
-  });
+  const res = await fetchWithTimeout(
+    `${BACKEND_URL}/api/conversation`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ situation, history, message }),
+    },
+    BACKEND_TIMEOUT_MS
+  );
   if (!res.ok) {
     const body = await res.json().catch(() => null);
     throw new Error(body?.error ?? `Backend error (${res.status})`);
