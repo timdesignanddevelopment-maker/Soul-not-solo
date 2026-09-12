@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: soul-not-solo-server
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: MODEL_PROVIDER
+        value: nim
+      - key: NVIDIA_NIM_MODEL
+        value: deepseek-ai/deepseek-v4-flash-0731
+      - key: NVIDIA_NIM_API_KEY
+        sync: false
