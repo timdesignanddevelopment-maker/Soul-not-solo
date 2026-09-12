@@ -19,6 +19,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="saved"
+        options={{
+          title: "Saved",
+          tabBarIcon: ({ color, size }) => <Ionicons name="bookmark" color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
         name="read"
         options={{
           title: "Read Bible",

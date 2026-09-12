@@ -14,6 +14,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { matchVerse } from "@/lib/api";
 import { fetchVerseText } from "@/lib/bibleApi";
+import { saveRequest } from "@/lib/verseHistory";
 import { VoiceInputButton } from "@/components/VoiceInputButton";
 import { FONT_SCRIPT, FONT_SERIF_BOLD, FONT_SERIF_ITALIC } from "@/lib/fonts";
 
@@ -40,6 +41,7 @@ export default function InputScreen() {
           };
         })
       );
+      saveRequest(trimmed, cards);
       router.push({
         pathname: "/reveal",
         params: { cards: JSON.stringify(cards), situation: trimmed },
