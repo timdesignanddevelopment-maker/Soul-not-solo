@@ -13,6 +13,9 @@ import {
   type Highlight,
   type HighlightColor,
 } from "@/lib/highlights";
+import { tokenizeVerse } from "@/lib/tokenizeVerse";
+import { defineWord, type WordDefinition } from "@/lib/dictionary";
+import { WordDefinitionModal } from "@/components/WordDefinitionModal";
 import { useTheme } from "@/lib/ThemeContext";
 import type { ThemeColors } from "@/lib/theme";
 import { FONT_SCRIPT, FONT_SERIF, FONT_SERIF_BOLD } from "@/lib/fonts";
@@ -30,6 +33,9 @@ export default function ChapterReaderScreen() {
   const [error, setError] = useState<string | null>(null);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [selectedColor, setSelectedColor] = useState<HighlightColor>("yellow");
+  const [activeWord, setActiveWord] = useState<string | null>(null);
+  const [activeDefinition, setActiveDefinition] = useState<WordDefinition | null>(null);
+  const [definitionLoading, setDefinitionLoading] = useState(false);
 
   useEffect(() => {
     if (!bookInfo) return;
@@ -83,6 +89,18 @@ export default function ChapterReaderScreen() {
     setHighlights(updatedAll.filter((h) => h.bookSlug === bookInfo.slug && h.chapter === chapterNum));
   }
 
+  async function handleWordPress(word: string, verseText: string) {
+    setActiveWord(word);
+    setActiveDefinition(null);
+    setDefinitionLoading(true);
+    try {
+      const result = await defineWord(word, verseText);
+      setActiveDefinition(result);
+    } finally {
+      setDefinitionLoading(false);
+    }
+  }
+
   if (!bookInfo) {
     return (
       <View style={styles.center}>
@@ -112,21 +130,33 @@ export default function ChapterReaderScreen() {
             {bookInfo.name} {chapterNum}
           </Text>
           <Text style={styles.hint}>
-            Tap a verse to highlight it in the selected color • tap a highlighted verse to open your
-            journal note
+            Tap the verse number to highlight it • tap a highlighted number to open your journal
+            note • tap any word to look it up
           </Text>
           <Text style={styles.body}>
             {passage?.verses.map((v) => {
               const highlight = findHighlightForVerse(highlights, bookInfo.slug, chapterNum, v.verse);
               const palette = highlight ? HIGHLIGHT_PALETTE[highlight.color] : null;
+              const highlightStyle = palette ? { backgroundColor: palette.background, color: palette.text } : undefined;
               return (
-                <Text
-                  key={v.verse}
-                  onPress={() => handleVersePress(v.verse)}
-                  style={palette ? { backgroundColor: palette.background, color: palette.text } : undefined}
-                >
-                  <Text style={[styles.verseNum, palette && { color: palette.text }]}>{v.verse} </Text>
-                  {v.text}
+                <Text key={v.verse}>
+                  <Text
+                    onPress={() => handleVersePress(v.verse)}
+                    style={[styles.verseNum, palette && { backgroundColor: palette.background, color: palette.text }]}
+                  >
+                    {v.verse}{" "}
+                  </Text>
+                  {tokenizeVerse(v.text).map((token, i) =>
+                    token.word ? (
+                      <Text key={i} onPress={() => handleWordPress(token.word!, v.text)} style={highlightStyle}>
+                        {token.raw}
+                      </Text>
+                    ) : (
+                      <Text key={i} style={highlightStyle}>
+                        {token.raw}
+                      </Text>
+                    )
+                  )}
                   {"  "}
                 </Text>
               );
@@ -166,6 +196,13 @@ export default function ChapterReaderScreen() {
           <Text style={styles.navText}>Next →</Text>
         </Pressable>
       </View>
+
+      <WordDefinitionModal
+        word={activeWord}
+        definition={activeDefinition}
+        loading={definitionLoading}
+        onClose={() => setActiveWord(null)}
+      />
     </View>
   );
 }
