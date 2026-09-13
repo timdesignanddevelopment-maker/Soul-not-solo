@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { verseRouter } from "./routes/verse";
 import { conversationRouter } from "./routes/conversation";
+import { defineRouter } from "./routes/define";
 import { getModelProvider, warnIfMisconfigured } from "./modelProvider";
 
 dotenv.config();
@@ -15,6 +16,7 @@ app.use(cors());
 app.use(express.json());
 app.use("/api", verseRouter);
 app.use("/api", conversationRouter);
+app.use("/api", defineRouter);
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
