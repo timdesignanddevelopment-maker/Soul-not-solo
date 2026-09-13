@@ -1,5 +1,6 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Dimensions,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -16,8 +17,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import ViewShot from "react-native-view-shot";
 import type { ViewShotRef } from "react-native-view-shot";
 import { VerseCard } from "@/components/VerseCard";
+import { TranslationPicker } from "@/components/TranslationPicker";
 import { shareVerse } from "@/lib/shareImage";
 import { parseReference } from "@/lib/parseReference";
+import { fetchVerseText } from "@/lib/bibleApi";
+import { DEFAULT_TRANSLATION_ID, getSelectedTranslationId, setSelectedTranslationId } from "@/lib/translations";
 
 interface Card {
   reference: string;
@@ -33,7 +37,7 @@ const SNAP_INTERVAL = CARD_WIDTH + CARD_SPACING;
 export default function RevealScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ cards: string; situation: string }>();
-  const cards: Card[] = useMemo(() => {
+  const initialCards: Card[] = useMemo(() => {
     try {
       return JSON.parse(params.cards ?? "[]");
     } catch {
@@ -42,9 +46,39 @@ export default function RevealScreen() {
   }, [params.cards]);
 
   const shotRefs = useRef<(ViewShotRef | null)[]>([]);
+  const [cards, setCards] = useState<Card[]>(initialCards);
   const [activeIndex, setActiveIndex] = useState(0);
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
+  const [translationId, setTranslationId] = useState(DEFAULT_TRANSLATION_ID);
+  const [translationLoading, setTranslationLoading] = useState(false);
+  const [translationError, setTranslationError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getSelectedTranslationId().then(setTranslationId);
+  }, []);
+
+  async function handleTranslationChange(id: string) {
+    if (id === translationId) return;
+    setTranslationId(id);
+    setSelectedTranslationId(id);
+    setTranslationLoading(true);
+    setTranslationError(null);
+    try {
+      const updated = await Promise.all(
+        cards.map(async (card) => {
+          const passage = await fetchVerseText(card.reference, id);
+          return { ...card, text: passage.text.trim() };
+        })
+      );
+      setCards(updated);
+    } catch (err) {
+      console.error("Failed to switch translation:", err);
+      setTranslationError("Couldn't load that translation. Try again.");
+    } finally {
+      setTranslationLoading(false);
+    }
+  }
 
   function handleScrollEnd(event: NativeSyntheticEvent<NativeScrollEvent>) {
     const index = Math.round(event.nativeEvent.contentOffset.x / SNAP_INTERVAL);
@@ -107,6 +141,17 @@ export default function RevealScreen() {
           </View>
         ) : (
           <>
+            <View style={styles.translationRow}>
+              <TranslationPicker
+                selectedId={translationId}
+                onSelect={handleTranslationChange}
+                disabled={translationLoading}
+              />
+              {translationLoading ? (
+                <ActivityIndicator size="small" color="#d8b46a" style={styles.translationSpinner} />
+              ) : null}
+            </View>
+            {translationError ? <Text style={styles.error}>{translationError}</Text> : null}
             <Text style={styles.hint}>Swipe for more • tap a card to read it in context</Text>
 
             <ScrollView
@@ -186,11 +231,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  translationRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 12,
+  },
+  translationSpinner: { marginLeft: 4 },
   hint: {
     textAlign: "center",
     color: "#9a8f83",
     fontSize: 12,
-    marginTop: 18,
+    marginTop: 10,
     marginBottom: 14,
     letterSpacing: 0.3,
   },

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -22,12 +22,19 @@ export default function InputScreen() {
   const [situation, setSituation] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [slowNotice, setSlowNotice] = useState(false);
+  const slowTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function handleSubmit(text: string) {
     const trimmed = text.trim();
     if (!trimmed || loading) return;
     setError(null);
     setLoading(true);
+    setSlowNotice(false);
+    // The free AI tier this runs on can genuinely take 20-30s per call, and
+    // occasionally needs a retry on top of that — without any feedback, a
+    // slow-but-working request looks identical to a broken one.
+    slowTimer.current = setTimeout(() => setSlowNotice(true), 7000);
     try {
       const matches = await matchVerse(trimmed);
       const cards = await Promise.all(
@@ -54,7 +61,9 @@ export default function InputScreen() {
           : "Couldn't reach the verse-matching service. Check that the backend is running and try again."
       );
     } finally {
+      if (slowTimer.current) clearTimeout(slowTimer.current);
       setLoading(false);
+      setSlowNotice(false);
     }
   }
 
@@ -93,6 +102,9 @@ export default function InputScreen() {
             </>
           )}
         </Pressable>
+        {loading && slowNotice ? (
+          <Text style={styles.slowNotice}>Still working — this can take up to a minute sometimes.</Text>
+        ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -128,6 +140,12 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   error: { color: "#e07a5f", fontSize: 13 },
+  slowNotice: {
+    fontFamily: FONT_SERIF_ITALIC,
+    color: "#9a8f83",
+    fontSize: 13,
+    textAlign: "center",
+  },
   submitButton: {
     flexDirection: "row",
     justifyContent: "center",
