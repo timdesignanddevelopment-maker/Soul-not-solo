@@ -4,7 +4,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { ParchmentPaper } from "@/components/ParchmentPaper";
 import { getHighlight, removeHighlight, type Highlight } from "@/lib/highlights";
-import { deleteVerseNote, getVerseNote, saveVerseNote } from "@/lib/journal";
+import { getVerseNote, saveVerseNote } from "@/lib/journal";
 import { confirmAction } from "@/lib/confirm";
 import { useTheme } from "@/lib/ThemeContext";
 import type { ThemeColors } from "@/lib/theme";
@@ -45,12 +45,11 @@ export default function VerseJournalScreen() {
 
   function handleRemoveHighlight() {
     confirmAction(
-      "Remove highlight?",
-      "This also deletes anything you've written about this verse.",
+      "Remove this highlight?",
+      "You can restore it from Trash for 30 days.",
       "Remove",
       async () => {
         await removeHighlight(id);
-        await deleteVerseNote(id);
         router.back();
       }
     );

@@ -50,6 +50,7 @@ export default function RootLayout() {
               close button now. */}
           <Stack.Screen name="reveal" options={{ presentation: "fullScreenModal", gestureEnabled: false }} />
           <Stack.Screen name="conversation" options={{ presentation: "modal" }} />
+          <Stack.Screen name="trash" options={{ presentation: "modal" }} />
         </Stack>
         <ThemeToggle />
       </GestureHandlerRootView>

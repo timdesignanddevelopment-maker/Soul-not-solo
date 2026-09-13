@@ -49,7 +49,7 @@ export default function PersonalJournalEntryScreen() {
       router.back();
       return;
     }
-    confirmAction("Delete this entry?", "This can't be undone.", "Delete", async () => {
+    confirmAction("Delete this entry?", "You can restore it from Trash for 30 days.", "Delete", async () => {
       await deletePersonalEntry(entryId);
       router.back();
     });

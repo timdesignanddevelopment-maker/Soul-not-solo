@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { BIBLE_BOOKS } from "@/lib/bibleIndex";
 import { fetchChapter, type BiblePassage } from "@/lib/bibleApi";
 import { getSelectedTranslationId } from "@/lib/translations";
 import {
   loadHighlights,
   addOrExtendHighlight,
+  addPartialHighlight,
+  removeHighlight,
+  setHighlightSavedToJournal,
   findHighlightForVerse,
+  findPartialHighlightsForVerse,
   HIGHLIGHT_COLORS,
   HIGHLIGHT_PALETTE,
   type Highlight,
@@ -19,6 +24,12 @@ import { WordDefinitionModal } from "@/components/WordDefinitionModal";
 import { useTheme } from "@/lib/ThemeContext";
 import type { ThemeColors } from "@/lib/theme";
 import { FONT_SCRIPT, FONT_SERIF, FONT_SERIF_BOLD } from "@/lib/fonts";
+
+interface Selection {
+  verse: number;
+  anchor: number;
+  end: number;
+}
 
 export default function ChapterReaderScreen() {
   const router = useRouter();
@@ -33,6 +44,7 @@ export default function ChapterReaderScreen() {
   const [error, setError] = useState<string | null>(null);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [selectedColor, setSelectedColor] = useState<HighlightColor>("yellow");
+  const [selection, setSelection] = useState<Selection | null>(null);
   const [activeWord, setActiveWord] = useState<string | null>(null);
   const [activeDefinition, setActiveDefinition] = useState<WordDefinition | null>(null);
   const [definitionLoading, setDefinitionLoading] = useState(false);
@@ -64,21 +76,32 @@ export default function ChapterReaderScreen() {
     let cancelled = false;
     loadHighlights().then((all) => {
       if (cancelled) return;
-      setHighlights(all.filter((h) => h.bookSlug === bookInfo.slug && h.chapter === chapterNum));
+      setHighlights(all.filter((h) => h.bookSlug === bookInfo!.slug && h.chapter === chapterNum));
     });
     return () => {
       cancelled = true;
     };
   }, [book, chapter]);
 
+  async function refreshHighlights() {
+    if (!bookInfo) return;
+    const all = await loadHighlights();
+    setHighlights(all.filter((h) => h.bookSlug === bookInfo.slug && h.chapter === chapterNum));
+  }
+
+  // Tapping an unhighlighted verse number highlights the whole verse; tapping
+  // an already-highlighted one toggles it back off — like clicking a
+  // highlighter pen on and off. This never touches the Journal — highlighting
+  // is just marking up the text.
   async function handleVersePress(verseNum: number) {
     if (!bookInfo || !passage) return;
     const existing = findHighlightForVerse(highlights, bookInfo.slug, chapterNum, verseNum);
     if (existing) {
-      router.push(`/journal/${encodeURIComponent(existing.id)}`);
+      await removeHighlight(existing.id);
+      await refreshHighlights();
       return;
     }
-    const updatedAll = await addOrExtendHighlight({
+    await addOrExtendHighlight({
       bookSlug: bookInfo.slug,
       bookName: bookInfo.name,
       chapter: chapterNum,
@@ -86,10 +109,63 @@ export default function ChapterReaderScreen() {
       color: selectedColor,
       chapterVerses: passage.verses.map((v) => ({ verse: v.verse, text: v.text })),
     });
-    setHighlights(updatedAll.filter((h) => h.bookSlug === bookInfo.slug && h.chapter === chapterNum));
+    await refreshHighlights();
   }
 
-  async function handleWordPress(word: string, verseText: string) {
+  // A long-press on a highlight — whole-verse or a word-range — is the
+  // deliberate "save this to journal" action, so it only shows up in the
+  // Journal glossary once someone actually wants to write about it.
+  async function handleSaveToJournal(highlightId: string) {
+    await setHighlightSavedToJournal(highlightId, true);
+    await refreshHighlights();
+    router.push(`/journal/${encodeURIComponent(highlightId)}`);
+  }
+
+  function handleVerseLongPress(verseNum: number) {
+    if (!bookInfo) return;
+    const existing = findHighlightForVerse(highlights, bookInfo.slug, chapterNum, verseNum);
+    if (existing) handleSaveToJournal(existing.id);
+  }
+
+  function cancelSelection() {
+    setSelection(null);
+  }
+
+  async function confirmSelection() {
+    if (!bookInfo || !passage || !selection) return;
+    const v = passage.verses.find((verse) => verse.verse === selection.verse);
+    if (!v) {
+      cancelSelection();
+      return;
+    }
+    const words = tokenizeVerse(v.text)
+      .filter((t) => t.word !== null)
+      .map((t) => t.raw);
+    await addPartialHighlight({
+      bookSlug: bookInfo.slug,
+      bookName: bookInfo.name,
+      chapter: chapterNum,
+      verseNum: selection.verse,
+      verseText: v.text,
+      startWord: selection.anchor,
+      endWord: selection.end,
+      words,
+      color: selectedColor,
+    });
+    setSelection(null);
+    await refreshHighlights();
+  }
+
+  async function handleWordPress(verseNum: number, wordIndex: number, word: string, verseText: string) {
+    if (selection && selection.verse === verseNum) {
+      setSelection({ ...selection, end: wordIndex });
+      return;
+    }
+    if (selection) {
+      // A tap landed in a different verse while mid-selection — treat it as
+      // abandoning that selection and looking the word up as usual.
+      setSelection(null);
+    }
     setActiveWord(word);
     setActiveDefinition(null);
     setDefinitionLoading(true);
@@ -99,6 +175,14 @@ export default function ChapterReaderScreen() {
     } finally {
       setDefinitionLoading(false);
     }
+  }
+
+  function handleWordLongPress(verseNum: number, wordIndex: number, existingHighlightId: string | null) {
+    if (existingHighlightId) {
+      handleSaveToJournal(existingHighlightId);
+      return;
+    }
+    setSelection({ verse: verseNum, anchor: wordIndex, end: wordIndex });
   }
 
   if (!bookInfo) {
@@ -130,38 +214,84 @@ export default function ChapterReaderScreen() {
             {bookInfo.name} {chapterNum}
           </Text>
           <Text style={styles.hint}>
-            Tap the verse number to highlight it • tap a highlighted number to open your journal
-            note • tap any word to look it up
+            Tap a verse number to highlight it, tap again to remove it • long-press a highlight to
+            save it to your journal • long-press any word to pick out a phrase • tap a word to look
+            it up
           </Text>
-          <Text style={styles.body}>
-            {passage?.verses.map((v) => {
-              const highlight = findHighlightForVerse(highlights, bookInfo.slug, chapterNum, v.verse);
-              const palette = highlight ? HIGHLIGHT_PALETTE[highlight.color] : null;
-              const highlightStyle = palette ? { backgroundColor: palette.background, color: palette.text } : undefined;
-              return (
-                <Text key={v.verse}>
+          {passage?.verses.map((v) => {
+            const wholeVerse = findHighlightForVerse(highlights, bookInfo.slug, chapterNum, v.verse);
+            const wholePalette = wholeVerse ? HIGHLIGHT_PALETTE[wholeVerse.color] : null;
+            const partials = findPartialHighlightsForVerse(highlights, bookInfo.slug, chapterNum, v.verse);
+            const isSelectingThisVerse = selection?.verse === v.verse;
+            const selLo = isSelectingThisVerse ? Math.min(selection!.anchor, selection!.end) : -1;
+            const selHi = isSelectingThisVerse ? Math.max(selection!.anchor, selection!.end) : -1;
+
+            let wordIndex = -1;
+
+            return (
+              <View key={v.verse} style={styles.verseBlock}>
+                <Text style={styles.verseLine}>
                   <Text
                     onPress={() => handleVersePress(v.verse)}
-                    style={[styles.verseNum, palette && { backgroundColor: palette.background, color: palette.text }]}
+                    onLongPress={() => handleVerseLongPress(v.verse)}
+                    style={[styles.verseNum, wholePalette && { backgroundColor: wholePalette.background, color: wholePalette.text }]}
                   >
                     {v.verse}{" "}
                   </Text>
-                  {tokenizeVerse(v.text).map((token, i) =>
-                    token.word ? (
-                      <Text key={i} onPress={() => handleWordPress(token.word!, v.text)} style={highlightStyle}>
+                  {tokenizeVerse(v.text).map((token, i) => {
+                    if (!token.word) {
+                      return (
+                        <Text key={i} style={wholePalette ? { backgroundColor: wholePalette.background, color: wholePalette.text } : undefined}>
+                          {token.raw}
+                        </Text>
+                      );
+                    }
+                    wordIndex += 1;
+                    const idx = wordIndex;
+                    const partial = partials.find((p) => idx >= p.startWord! && idx <= p.endWord!);
+                    const isSelected = isSelectingThisVerse && idx >= selLo && idx <= selHi;
+
+                    let wordStyle: { backgroundColor: string; color: string } | undefined;
+                    if (isSelected) {
+                      const previewPalette = HIGHLIGHT_PALETTE[selectedColor];
+                      wordStyle = { backgroundColor: previewPalette.background, color: previewPalette.text };
+                    } else if (partial) {
+                      const p = HIGHLIGHT_PALETTE[partial.color];
+                      wordStyle = { backgroundColor: p.background, color: p.text };
+                    } else if (wholePalette) {
+                      wordStyle = { backgroundColor: wholePalette.background, color: wholePalette.text };
+                    }
+
+                    return (
+                      <Text
+                        key={i}
+                        onPress={() => handleWordPress(v.verse, idx, token.word!, v.text)}
+                        onLongPress={() => handleWordLongPress(v.verse, idx, partial?.id ?? wholeVerse?.id ?? null)}
+                        style={[wordStyle, isSelected && styles.selectingWord]}
+                      >
                         {token.raw}
                       </Text>
-                    ) : (
-                      <Text key={i} style={highlightStyle}>
-                        {token.raw}
-                      </Text>
-                    )
-                  )}
+                    );
+                  })}
                   {"  "}
                 </Text>
-              );
-            })}
-          </Text>
+
+                {isSelectingThisVerse ? (
+                  <View style={styles.selectionBar}>
+                    <Text style={styles.selectionHint}>Tap the last word, then save</Text>
+                    <Pressable style={styles.selectionButton} onPress={cancelSelection}>
+                      <Ionicons name="close" size={16} color={colors.textMuted} />
+                      <Text style={styles.selectionButtonText}>Cancel</Text>
+                    </Pressable>
+                    <Pressable style={[styles.selectionButton, styles.selectionSave]} onPress={confirmSelection}>
+                      <Ionicons name="checkmark" size={16} color={colors.accentText} />
+                      <Text style={[styles.selectionButtonText, styles.selectionSaveText]}>Save Highlight</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+              </View>
+            );
+          })}
         </ScrollView>
       )}
 
@@ -220,9 +350,35 @@ const createStyles = (colors: ThemeColors) =>
       textAlign: "center",
       marginBottom: 16,
     },
-    body: { fontFamily: FONT_SERIF, fontSize: 19, lineHeight: 30, color: colors.text },
+    verseBlock: { marginBottom: 4 },
+    verseLine: { fontFamily: FONT_SERIF, fontSize: 19, lineHeight: 30, color: colors.text },
     verseNum: { fontFamily: FONT_SERIF_BOLD, fontSize: 13, color: colors.accent },
+    selectingWord: { textDecorationLine: "underline" },
     error: { color: colors.danger, fontSize: 15, padding: 24, textAlign: "center" },
+    selectionBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      marginTop: 4,
+      marginBottom: 8,
+      padding: 8,
+      borderRadius: 12,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    selectionHint: { flex: 1, fontFamily: FONT_SERIF, fontSize: 12, color: colors.textMuted },
+    selectionButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      borderRadius: 8,
+    },
+    selectionButtonText: { fontFamily: FONT_SERIF, fontSize: 13, color: colors.textMuted },
+    selectionSave: { backgroundColor: colors.accent },
+    selectionSaveText: { color: colors.accentText },
     colorPicker: {
       position: "absolute",
       right: 10,

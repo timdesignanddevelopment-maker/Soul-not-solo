@@ -3,6 +3,7 @@ import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { loadHistory, deleteRequest, type SavedRequest } from "@/lib/verseHistory";
+import { confirmAction } from "@/lib/confirm";
 import { useTheme } from "@/lib/ThemeContext";
 import type { ThemeColors } from "@/lib/theme";
 import { FONT_SCRIPT, FONT_SERIF, FONT_SERIF_ITALIC } from "@/lib/fonts";
@@ -49,9 +50,11 @@ export default function SavedScreen() {
     });
   }
 
-  async function removeEntry(id: string) {
-    setHistory((current) => current.filter((entry) => entry.id !== id));
-    await deleteRequest(id);
+  function removeEntry(id: string) {
+    confirmAction("Delete this?", "You can restore it from Trash for 30 days.", "Delete", async () => {
+      setHistory((current) => current.filter((entry) => entry.id !== id));
+      await deleteRequest(id);
+    });
   }
 
   return (
@@ -60,7 +63,14 @@ export default function SavedScreen() {
         data={history}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
-        ListHeaderComponent={<Text style={styles.header}>Saved Verses</Text>}
+        ListHeaderComponent={
+          <View style={styles.headerRow}>
+            <Text style={styles.header}>Saved Verses</Text>
+            <Pressable style={styles.trashLink} onPress={() => router.push("/trash")} hitSlop={12}>
+              <Ionicons name="trash-bin-outline" size={20} color={colors.textMuted} />
+            </Pressable>
+          </View>
+        }
         ListEmptyComponent={
           loaded ? (
             <Text style={styles.empty}>
@@ -94,7 +104,9 @@ const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     flex: { flex: 1, backgroundColor: colors.background },
     list: { padding: 20, paddingBottom: 40, flexGrow: 1 },
-    header: { fontFamily: FONT_SCRIPT, fontSize: 40, color: colors.accent, marginBottom: 16, textAlign: "center" },
+    headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 16 },
+    header: { fontFamily: FONT_SCRIPT, fontSize: 40, color: colors.accent, textAlign: "center" },
+    trashLink: { position: "absolute", right: 0 },
     empty: {
       fontFamily: FONT_SERIF_ITALIC,
       color: colors.textMuted,

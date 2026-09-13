@@ -2,8 +2,9 @@ import { useCallback, useMemo, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { loadHighlights, HIGHLIGHT_PALETTE, type Highlight } from "@/lib/highlights";
-import { loadPersonalEntries, type PersonalEntry } from "@/lib/journal";
+import { loadHighlights, removeHighlight, HIGHLIGHT_PALETTE, type Highlight } from "@/lib/highlights";
+import { loadPersonalEntries, deletePersonalEntry, type PersonalEntry } from "@/lib/journal";
+import { confirmAction } from "@/lib/confirm";
 import { useTheme } from "@/lib/ThemeContext";
 import type { ThemeColors } from "@/lib/theme";
 import { FONT_SCRIPT, FONT_SERIF, FONT_SERIF_ITALIC } from "@/lib/fonts";
@@ -35,7 +36,7 @@ export default function JournalIndexScreen() {
       let cancelled = false;
       Promise.all([loadHighlights(), loadPersonalEntries()]).then(([h, e]) => {
         if (cancelled) return;
-        setHighlights(h);
+        setHighlights(h.filter((item) => item.savedToJournal));
         setEntries(e);
         setLoaded(true);
       });
@@ -45,9 +46,28 @@ export default function JournalIndexScreen() {
     }, [])
   );
 
+  function removeHighlightEntry(id: string) {
+    confirmAction("Delete this?", "You can restore it from Trash for 30 days.", "Delete", async () => {
+      setHighlights((current) => current.filter((h) => h.id !== id));
+      await removeHighlight(id);
+    });
+  }
+
+  function removePersonalEntry(id: string) {
+    confirmAction("Delete this?", "You can restore it from Trash for 30 days.", "Delete", async () => {
+      setEntries((current) => current.filter((e) => e.id !== id));
+      await deletePersonalEntry(id);
+    });
+  }
+
   return (
     <View style={styles.flex}>
-      <Text style={styles.header}>Journal</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.header}>Journal</Text>
+        <Pressable style={styles.trashLink} onPress={() => router.push("/trash")} hitSlop={12}>
+          <Ionicons name="trash-bin-outline" size={20} color={colors.textMuted} />
+        </Pressable>
+      </View>
 
       <View style={styles.segmented}>
         <Pressable
@@ -74,8 +94,8 @@ export default function JournalIndexScreen() {
           ListEmptyComponent={
             loaded ? (
               <Text style={styles.empty}>
-                Nothing highlighted yet — tap a verse in the Bible reader to highlight it, then come back
-                here to write about it.
+                Nothing here yet — long-press a highlight in the Bible reader to save it to your
+                journal and write about it.
               </Text>
             ) : null
           }
@@ -89,7 +109,9 @@ export default function JournalIndexScreen() {
                 </Text>
                 <Text style={styles.rowWhen}>{formatWhen(item.createdAt)}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              <Pressable hitSlop={12} onPress={() => removeHighlightEntry(item.id)}>
+                <Ionicons name="close" size={18} color={colors.textMuted} />
+              </Pressable>
             </Pressable>
           )}
         />
@@ -119,7 +141,9 @@ export default function JournalIndexScreen() {
                 </Text>
                 <Text style={styles.rowWhen}>{formatWhen(item.updatedAt)}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+              <Pressable hitSlop={12} onPress={() => removePersonalEntry(item.id)}>
+                <Ionicons name="close" size={18} color={colors.textMuted} />
+              </Pressable>
             </Pressable>
           )}
         />
@@ -131,14 +155,20 @@ export default function JournalIndexScreen() {
 const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
     flex: { flex: 1, backgroundColor: colors.background },
+    headerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 20,
+      marginBottom: 12,
+    },
     header: {
       fontFamily: FONT_SCRIPT,
       fontSize: 40,
       color: colors.accent,
       textAlign: "center",
-      marginTop: 20,
-      marginBottom: 12,
     },
+    trashLink: { position: "absolute", right: 20 },
     segmented: {
       flexDirection: "row",
       marginHorizontal: 20,

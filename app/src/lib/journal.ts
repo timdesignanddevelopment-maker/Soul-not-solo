@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { isExpired } from "./trash";
 
 // Notes written against a specific highlighted verse — one per highlight.
 export interface VerseNote {
@@ -13,6 +14,7 @@ export interface PersonalEntry {
   content: string;
   createdAt: number;
   updatedAt: number;
+  deletedAt?: number;
 }
 
 const VERSE_NOTES_KEY = "soul-not-solo:verse-notes";
@@ -55,7 +57,7 @@ export async function deleteVerseNote(highlightId: string): Promise<void> {
   }
 }
 
-export async function loadPersonalEntries(): Promise<PersonalEntry[]> {
+async function loadPersonalEntriesRaw(): Promise<PersonalEntry[]> {
   try {
     const raw = await AsyncStorage.getItem(PERSONAL_KEY);
     if (!raw) return [];
@@ -66,6 +68,26 @@ export async function loadPersonalEntries(): Promise<PersonalEntry[]> {
   }
 }
 
+async function persistPersonalEntries(entries: PersonalEntry[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(PERSONAL_KEY, JSON.stringify(entries));
+  } catch (err) {
+    console.error("Failed to save personal journal entries:", err);
+  }
+}
+
+export async function loadPersonalEntries(): Promise<PersonalEntry[]> {
+  const all = await loadPersonalEntriesRaw();
+  const kept = all.filter((e) => !e.deletedAt || !isExpired(e.deletedAt));
+  if (kept.length !== all.length) await persistPersonalEntries(kept);
+  return kept.filter((e) => !e.deletedAt);
+}
+
+export async function loadDeletedPersonalEntries(): Promise<PersonalEntry[]> {
+  const all = await loadPersonalEntriesRaw();
+  return all.filter((e) => e.deletedAt && !isExpired(e.deletedAt));
+}
+
 export async function getPersonalEntry(id: string): Promise<PersonalEntry | undefined> {
   const entries = await loadPersonalEntries();
   return entries.find((e) => e.id === id);
@@ -73,7 +95,7 @@ export async function getPersonalEntry(id: string): Promise<PersonalEntry | unde
 
 // Pass an existing id to update that entry, or null to create a new one.
 export async function savePersonalEntry(id: string | null, content: string): Promise<PersonalEntry> {
-  const existing = await loadPersonalEntries();
+  const existing = await loadPersonalEntriesRaw();
   const now = Date.now();
 
   if (id) {
@@ -84,12 +106,7 @@ export async function savePersonalEntry(id: string | null, content: string): Pro
       createdAt: current?.createdAt ?? now,
       updatedAt: now,
     };
-    const updated = [entry, ...existing.filter((e) => e.id !== id)];
-    try {
-      await AsyncStorage.setItem(PERSONAL_KEY, JSON.stringify(updated));
-    } catch (err) {
-      console.error("Failed to save personal journal entry:", err);
-    }
+    await persistPersonalEntries([entry, ...existing.filter((e) => e.id !== id)]);
     return entry;
   }
 
@@ -99,22 +116,27 @@ export async function savePersonalEntry(id: string | null, content: string): Pro
     createdAt: now,
     updatedAt: now,
   };
-  const updated = [entry, ...existing];
-  try {
-    await AsyncStorage.setItem(PERSONAL_KEY, JSON.stringify(updated));
-  } catch (err) {
-    console.error("Failed to save personal journal entry:", err);
-  }
+  await persistPersonalEntries([entry, ...existing]);
   return entry;
 }
 
+// Soft-delete — moves the entry to the trash for 30 days rather than
+// erasing it immediately.
 export async function deletePersonalEntry(id: string): Promise<PersonalEntry[]> {
-  const existing = await loadPersonalEntries();
-  const updated = existing.filter((e) => e.id !== id);
-  try {
-    await AsyncStorage.setItem(PERSONAL_KEY, JSON.stringify(updated));
-  } catch (err) {
-    console.error("Failed to delete personal journal entry:", err);
-  }
-  return updated;
+  const existing = await loadPersonalEntriesRaw();
+  const updated = existing.map((e) => (e.id === id ? { ...e, deletedAt: Date.now() } : e));
+  await persistPersonalEntries(updated);
+  return updated.filter((e) => !e.deletedAt);
+}
+
+export async function restorePersonalEntry(id: string): Promise<PersonalEntry[]> {
+  const existing = await loadPersonalEntriesRaw();
+  const updated = existing.map((e) => (e.id === id ? { ...e, deletedAt: undefined } : e));
+  await persistPersonalEntries(updated);
+  return updated.filter((e) => !e.deletedAt);
+}
+
+export async function purgePersonalEntryForever(id: string): Promise<void> {
+  const existing = await loadPersonalEntriesRaw();
+  await persistPersonalEntries(existing.filter((e) => e.id !== id));
 }

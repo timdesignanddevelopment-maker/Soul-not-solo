@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getVerseNote, saveVerseNote, deleteVerseNote } from "./journal";
+import { isExpired } from "./trash";
 
 export type HighlightColor = "yellow" | "blue" | "red" | "pink" | "orange" | "green" | "purple";
 
@@ -35,10 +36,21 @@ export interface Highlight {
   chapter: number;
   startVerse: number;
   endVerse: number;
+  // Word-range highlights (drag/long-press selecting less than a whole
+  // verse) set both of these to indices into that verse's word tokens.
+  // Whole-verse-and-up highlights (tapping a verse number, possibly merged
+  // into a passage) leave them undefined.
+  startWord?: number;
+  endWord?: number;
   color: HighlightColor;
   text: string;
   reference: string; // e.g. "John 3:16" or "John 3:16-18"
   createdAt: number;
+  // A highlight only shows up in the Journal's glossary once the user
+  // deliberately long-presses it to save it there — plain highlighting is
+  // just marking up the text, not journaling about it.
+  savedToJournal: boolean;
+  deletedAt?: number;
 }
 
 const STORAGE_KEY = "soul-not-solo:highlights";
@@ -52,18 +64,28 @@ export function highlightId(bookSlug: string, chapter: number, startVerse: numbe
     : `${bookSlug}:${chapter}:${startVerse}-${endVerse}`;
 }
 
-// Highlights saved before passages/colors existed only had a single `verse`
-// field and no color — normalize them on read so the rest of the app only
-// ever sees the current shape.
-function normalize(raw: Record<string, unknown>): Highlight {
-  if (typeof raw.startVerse === "number" && typeof raw.endVerse === "number") {
-    return { color: "yellow", ...raw } as Highlight;
-  }
-  const verse = raw.verse as number;
-  return { ...raw, startVerse: verse, endVerse: verse, color: raw.color ?? "yellow" } as Highlight;
+function partialHighlightId(bookSlug: string, chapter: number, verse: number, startWord: number, endWord: number): string {
+  return `${bookSlug}:${chapter}:${verse}:w${startWord}-${endWord}`;
 }
 
-export async function loadHighlights(): Promise<Highlight[]> {
+// Highlights saved before passages/colors/journal-opt-in existed only had a
+// `verse` field, no color, and were implicitly "in the journal" — normalize
+// them on read so the rest of the app only ever sees the current shape.
+function normalize(raw: Record<string, unknown>): Highlight {
+  if (typeof raw.startVerse === "number" && typeof raw.endVerse === "number") {
+    return { color: "yellow", savedToJournal: true, ...raw } as Highlight;
+  }
+  const verse = raw.verse as number;
+  return {
+    ...raw,
+    startVerse: verse,
+    endVerse: verse,
+    color: raw.color ?? "yellow",
+    savedToJournal: true,
+  } as Highlight;
+}
+
+async function loadAllRaw(): Promise<Highlight[]> {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
@@ -82,11 +104,29 @@ async function persist(highlights: Highlight[]): Promise<void> {
   }
 }
 
+// Purges anything past its trash retention window, then returns only the
+// still-active (non-deleted) highlights — the shape every screen except the
+// trash view should see.
+export async function loadHighlights(): Promise<Highlight[]> {
+  const all = await loadAllRaw();
+  const kept = all.filter((h) => !h.deletedAt || !isExpired(h.deletedAt));
+  if (kept.length !== all.length) await persist(kept);
+  return kept.filter((h) => !h.deletedAt);
+}
+
+export async function loadDeletedHighlights(): Promise<Highlight[]> {
+  const all = await loadAllRaw();
+  return all.filter((h) => h.deletedAt && !isExpired(h.deletedAt));
+}
+
 export async function getHighlight(id: string): Promise<Highlight | undefined> {
   const existing = await loadHighlights();
   return existing.find((h) => h.id === id);
 }
 
+// Whole-verse (and passage) highlights covering this verse — at most one,
+// since same-color adjacency merges them and different colors don't overlap
+// a single verse today.
 export function findHighlightForVerse(
   highlights: Highlight[],
   bookSlug: string,
@@ -94,15 +134,61 @@ export function findHighlightForVerse(
   verse: number
 ): Highlight | undefined {
   return highlights.find(
-    (h) => h.bookSlug === bookSlug && h.chapter === chapter && verse >= h.startVerse && verse <= h.endVerse
+    (h) =>
+      h.startWord === undefined &&
+      h.bookSlug === bookSlug &&
+      h.chapter === chapter &&
+      verse >= h.startVerse &&
+      verse <= h.endVerse
   );
 }
 
+// Word-range highlights anchored to this exact verse (there can be several —
+// e.g. two separate phrases picked out in different colors).
+export function findPartialHighlightsForVerse(
+  highlights: Highlight[],
+  bookSlug: string,
+  chapter: number,
+  verse: number
+): Highlight[] {
+  return highlights.filter(
+    (h) =>
+      h.startWord !== undefined &&
+      h.bookSlug === bookSlug &&
+      h.chapter === chapter &&
+      h.startVerse === verse &&
+      h.endVerse === verse
+  );
+}
+
+// Soft-delete: moves a highlight to the trash (kept for 30 days) rather than
+// erasing it immediately, and takes any note written about it along with it
+// so "restore" brings the note back too.
 export async function removeHighlight(id: string): Promise<Highlight[]> {
-  const existing = await loadHighlights();
-  const updated = existing.filter((h) => h.id !== id);
+  const existing = await loadAllRaw();
+  const updated = existing.map((h) => (h.id === id ? { ...h, deletedAt: Date.now() } : h));
   await persist(updated);
-  return updated;
+  return updated.filter((h) => !h.deletedAt);
+}
+
+export async function restoreHighlight(id: string): Promise<Highlight[]> {
+  const existing = await loadAllRaw();
+  const updated = existing.map((h) => (h.id === id ? { ...h, deletedAt: undefined } : h));
+  await persist(updated);
+  return updated.filter((h) => !h.deletedAt);
+}
+
+export async function purgeHighlightForever(id: string): Promise<void> {
+  const existing = await loadAllRaw();
+  await persist(existing.filter((h) => h.id !== id));
+  await deleteVerseNote(id);
+}
+
+export async function setHighlightSavedToJournal(id: string, saved: boolean): Promise<Highlight[]> {
+  const existing = await loadAllRaw();
+  const updated = existing.map((h) => (h.id === id ? { ...h, savedToJournal: saved } : h));
+  await persist(updated);
+  return updated.filter((h) => !h.deletedAt);
 }
 
 interface ExtendParams {
@@ -123,8 +209,10 @@ interface ExtendParams {
 // already written against the old id moves to the new one so it isn't lost.
 export async function addOrExtendHighlight(params: ExtendParams): Promise<Highlight[]> {
   const all = await loadHighlights();
-  const sameChapter = all.filter((h) => h.bookSlug === params.bookSlug && h.chapter === params.chapter);
-  const others = all.filter((h) => !(h.bookSlug === params.bookSlug && h.chapter === params.chapter));
+  const sameChapter = all.filter(
+    (h) => h.startWord === undefined && h.bookSlug === params.bookSlug && h.chapter === params.chapter
+  );
+  const others = (await loadAllRaw()).filter((h) => h.deletedAt || h.startWord !== undefined || !(h.bookSlug === params.bookSlug && h.chapter === params.chapter));
 
   const prev = sameChapter.find((h) => h.endVerse === params.verseNum - 1 && h.color === params.color);
   const next = sameChapter.find((h) => h.startVerse === params.verseNum + 1 && h.color === params.color);
@@ -155,6 +243,7 @@ export async function addOrExtendHighlight(params: ExtendParams): Promise<Highli
     text,
     reference,
     createdAt,
+    savedToJournal: false,
   };
 
   for (const old of [prev, next]) {
@@ -168,5 +257,48 @@ export async function addOrExtendHighlight(params: ExtendParams): Promise<Highli
 
   const updated = [...others, ...remaining, merged];
   await persist(updated);
-  return updated;
+  return updated.filter((h) => !h.deletedAt);
+}
+
+interface PartialParams {
+  bookSlug: string;
+  bookName: string;
+  chapter: number;
+  verseNum: number;
+  verseText: string;
+  startWord: number;
+  endWord: number;
+  words: string[]; // this verse's word tokens (raw, in order) so we can slice out the highlighted text
+  color: HighlightColor;
+}
+
+// A word-range selection ("start and stop the highlight" mid-verse) always
+// creates its own highlight rather than merging into anything — phrases
+// picked out this way are meant to be distinct little markers, not passages.
+export async function addPartialHighlight(params: PartialParams): Promise<Highlight[]> {
+  const all = await loadAllRaw();
+  const lo = Math.min(params.startWord, params.endWord);
+  const hi = Math.max(params.startWord, params.endWord);
+  const id = partialHighlightId(params.bookSlug, params.chapter, params.verseNum, lo, hi);
+  const text = params.words.slice(lo, hi + 1).join(" ").trim();
+
+  const highlight: Highlight = {
+    id,
+    bookSlug: params.bookSlug,
+    bookName: params.bookName,
+    chapter: params.chapter,
+    startVerse: params.verseNum,
+    endVerse: params.verseNum,
+    startWord: lo,
+    endWord: hi,
+    color: params.color,
+    text,
+    reference: `${params.bookName} ${params.chapter}:${params.verseNum}`,
+    createdAt: Date.now(),
+    savedToJournal: false,
+  };
+
+  const updated = [...all.filter((h) => h.id !== id), highlight];
+  await persist(updated);
+  return updated.filter((h) => !h.deletedAt);
 }
