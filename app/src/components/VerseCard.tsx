@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { FONT_SCRIPT, FONT_SERIF, FONT_SERIF_BOLD, FONT_SERIF_ITALIC } from "@/lib/fonts";
@@ -8,16 +8,20 @@ interface Props {
   text: string;
   encouragement: string;
   width: number;
+  height: number;
   onPress: () => void;
 }
 
 // One illuminated-manuscript-style card. The whole card is tappable to jump
-// to that passage in the full Bible reader.
-export function VerseCard({ reference, text, encouragement, width, onPress }: Props) {
+// to that passage in the full Bible reader. Height is fixed (passed in, not
+// intrinsic) so long verses/encouragement scroll within the card instead of
+// growing it past the screen — it used to just grow, pushing the dots and
+// buttons below it off-screen with no way to reach the rest of the text.
+export function VerseCard({ reference, text, encouragement, width, height, onPress }: Props) {
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.card, { width }]}
+      style={[styles.card, { width, height }]}
       accessibilityRole="button"
       accessibilityLabel={`Read ${reference} in context`}
     >
@@ -29,12 +33,16 @@ export function VerseCard({ reference, text, encouragement, width, onPress }: Pr
       />
       <View style={styles.innerBorder} pointerEvents="none" />
 
-      <View style={styles.content}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={true}
+      >
         <Text style={styles.reference}>{reference}</Text>
         <Text style={styles.verse}>&ldquo;{text}&rdquo;</Text>
         <View style={styles.divider} />
         <Text style={styles.encouragement}>{encouragement}</Text>
-      </View>
+      </ScrollView>
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>Read in context</Text>
@@ -50,7 +58,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1.5,
     borderColor: "#a9873f",
-    minHeight: 420,
     shadowColor: "#000",
     shadowOpacity: 0.35,
     shadowRadius: 16,
@@ -67,7 +74,8 @@ const styles = StyleSheet.create({
     borderColor: "rgba(107, 85, 53, 0.35)",
     borderRadius: 14,
   },
-  content: { flex: 1, padding: 28, justifyContent: "center", gap: 14 },
+  content: { flex: 1 },
+  contentContainer: { flexGrow: 1, padding: 28, justifyContent: "center", gap: 14 },
   reference: {
     fontFamily: FONT_SCRIPT,
     fontSize: 30,

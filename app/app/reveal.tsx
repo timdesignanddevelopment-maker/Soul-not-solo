@@ -53,6 +53,7 @@ export default function RevealScreen() {
   const [translationId, setTranslationId] = useState(DEFAULT_TRANSLATION_ID);
   const [translationLoading, setTranslationLoading] = useState(false);
   const [translationError, setTranslationError] = useState<string | null>(null);
+  const [carouselHeight, setCarouselHeight] = useState(0);
 
   useEffect(() => {
     getSelectedTranslationId().then(setTranslationId);
@@ -165,25 +166,28 @@ export default function RevealScreen() {
               }}
               onMomentumScrollEnd={handleScrollEnd}
               style={styles.carousel}
+              onLayout={(e) => setCarouselHeight(e.nativeEvent.layout.height)}
             >
-              {cards.map((card, index) => (
-                <View key={card.reference + index} style={{ marginRight: index === cards.length - 1 ? 0 : CARD_SPACING }}>
-                  <ViewShot
-                    ref={(r) => {
-                      shotRefs.current[index] = r;
-                    }}
-                    options={{ format: "png", quality: 0.95 }}
-                  >
-                    <VerseCard
-                      reference={card.reference}
-                      text={card.text}
-                      encouragement={card.encouragement}
-                      width={CARD_WIDTH}
-                      onPress={() => handleCardPress(card)}
-                    />
-                  </ViewShot>
-                </View>
-              ))}
+              {carouselHeight > 0 &&
+                cards.map((card, index) => (
+                  <View key={card.reference + index} style={{ marginRight: index === cards.length - 1 ? 0 : CARD_SPACING }}>
+                    <ViewShot
+                      ref={(r) => {
+                        shotRefs.current[index] = r;
+                      }}
+                      options={{ format: "png", quality: 0.95 }}
+                    >
+                      <VerseCard
+                        reference={card.reference}
+                        text={card.text}
+                        encouragement={card.encouragement}
+                        width={CARD_WIDTH}
+                        height={carouselHeight}
+                        onPress={() => handleCardPress(card)}
+                      />
+                    </ViewShot>
+                  </View>
+                ))}
             </ScrollView>
 
             <View style={styles.dots}>
@@ -247,7 +251,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     letterSpacing: 0.3,
   },
-  carousel: { flexGrow: 0 },
+  carousel: { flex: 1 },
   dots: { flexDirection: "row", justifyContent: "center", gap: 8, marginTop: 18 },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#3a2e22" },
   dotActive: { backgroundColor: "#d8b46a", width: 20 },

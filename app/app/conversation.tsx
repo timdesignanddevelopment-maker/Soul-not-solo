@@ -41,22 +41,22 @@ export default function ConversationScreen() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
-  async function send(text: string) {
-    const trimmed = text.trim();
-    if (!trimmed || loading) return;
+  // Shared by both a fresh send and a retry — `history` is every prior turn
+  // (not including messageText itself, which the backend takes separately).
+  // On failure the user's message stays in `messages` (added by the caller
+  // before this runs) so retry can resend it without retyping.
+  async function callApi(history: DisplayMessage[], messageText: string) {
     setError(null);
-    setInput("");
-    setSuggestions([]);
-    const nextMessages: DisplayMessage[] = [...messages, { role: "user", content: trimmed }];
-    setMessages(nextMessages);
     setLoading(true);
     try {
-      const history: ConversationTurn[] = messages.map((m) => ({ role: m.role, content: m.content }));
-      const result = await continueConversation(params.situation ?? "", history, trimmed);
-      setMessages([...nextMessages, { role: "assistant", content: result.reply }]);
+      const historyTurns: ConversationTurn[] = history.map((m) => ({ role: m.role, content: m.content }));
+      const result = await continueConversation(params.situation ?? "", historyTurns, messageText);
+      setMessages([...history, { role: "user", content: messageText }, { role: "assistant", content: result.reply }]);
       setSuggestions(result.suggestions ?? []);
+      setLastFailedMessage(null);
     } catch (err) {
       console.error(err);
       setError(
@@ -64,10 +64,26 @@ export default function ConversationScreen() {
           ? err.message
           : "Couldn't reach the server. Check that the backend is running and try again."
       );
+      setLastFailedMessage(messageText);
     } finally {
       setLoading(false);
       requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
     }
+  }
+
+  async function send(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed || loading) return;
+    setInput("");
+    setSuggestions([]);
+    const history = messages;
+    setMessages([...messages, { role: "user", content: trimmed }]);
+    await callApi(history, trimmed);
+  }
+
+  function retry() {
+    if (!lastFailedMessage || loading) return;
+    callApi(messages.slice(0, -1), lastFailedMessage);
   }
 
   return (
@@ -102,7 +118,16 @@ export default function ConversationScreen() {
           </View>
         ) : null}
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? (
+          <View style={styles.errorRow}>
+            <Text style={styles.error}>{error}</Text>
+            {lastFailedMessage ? (
+              <Pressable style={styles.retryButton} onPress={retry} hitSlop={10}>
+                <Ionicons name="refresh" size={16} color="#d8b46a" />
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
       </ScrollView>
 
       {suggestions.length > 0 && !loading ? (
@@ -165,7 +190,23 @@ const styles = StyleSheet.create({
   },
   bubbleTextAssistant: { fontFamily: FONT_SERIF, fontSize: 17, lineHeight: 24, color: "#3a2e18" },
   bubbleTextUser: { fontFamily: FONT_SERIF, fontSize: 17, lineHeight: 24, color: "#f3ead9" },
-  error: { color: "#e07a5f", fontSize: 13, textAlign: "center", marginTop: 8 },
+  errorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 8,
+  },
+  error: { color: "#e07a5f", fontSize: 13, textAlign: "center" },
+  retryButton: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: "#a9873f",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   suggestions: { paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
   chip: {
     maxWidth: 260,
