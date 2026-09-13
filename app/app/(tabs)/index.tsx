@@ -15,7 +15,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { matchVerse } from "@/lib/api";
 import { fetchVerseText } from "@/lib/bibleApi";
 import { saveRequest } from "@/lib/verseHistory";
-import { VoiceInputButton } from "@/components/VoiceInputButton";
 import { FONT_SCRIPT, FONT_SERIF_BOLD, FONT_SERIF_ITALIC } from "@/lib/fonts";
 
 export default function InputScreen() {
@@ -80,30 +79,20 @@ export default function InputScreen() {
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <View style={styles.actions}>
-          <VoiceInputButton
-            disabled={loading}
-            onResult={(spoken) => {
-              setSituation(spoken);
-              handleSubmit(spoken);
-            }}
-          />
-
-          <Pressable
-            style={[styles.submitButton, (loading || !situation.trim()) && styles.submitButtonDisabled]}
-            disabled={loading || !situation.trim()}
-            onPress={() => handleSubmit(situation)}
-          >
-            {loading ? (
-              <ActivityIndicator color="#1c1410" />
-            ) : (
-              <>
-                <Text style={styles.submitText}>Find my verses</Text>
-                <Ionicons name="arrow-forward" size={18} color="#1c1410" />
-              </>
-            )}
-          </Pressable>
-        </View>
+        <Pressable
+          style={[styles.submitButton, (loading || !situation.trim()) && styles.submitButtonDisabled]}
+          disabled={loading || !situation.trim()}
+          onPress={() => handleSubmit(situation)}
+        >
+          {loading ? (
+            <ActivityIndicator color="#1c1410" />
+          ) : (
+            <>
+              <Text style={styles.submitText}>Find my verses</Text>
+              <Ionicons name="arrow-forward" size={18} color="#1c1410" />
+            </>
+          )}
+        </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -139,9 +128,7 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   error: { color: "#e07a5f", fontSize: 13 },
-  actions: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 4 },
   submitButton: {
-    flex: 1,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
@@ -149,6 +136,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#d8b46a",
     borderRadius: 999,
     paddingVertical: 14,
+    marginTop: 4,
   },
   submitButtonDisabled: { opacity: 0.5 },
   submitText: { fontFamily: FONT_SERIF_BOLD, fontSize: 16, color: "#1c1410" },
