@@ -22,6 +22,8 @@ import { shareVerse } from "@/lib/shareImage";
 import { parseReference } from "@/lib/parseReference";
 import { fetchVerseText } from "@/lib/bibleApi";
 import { DEFAULT_TRANSLATION_ID, getSelectedTranslationId, setSelectedTranslationId } from "@/lib/translations";
+import { useTheme } from "@/lib/ThemeContext";
+import type { ThemeColors } from "@/lib/theme";
 
 interface Card {
   reference: string;
@@ -36,6 +38,8 @@ const SNAP_INTERVAL = CARD_WIDTH + CARD_SPACING;
 
 export default function RevealScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const params = useLocalSearchParams<{ cards: string; situation: string }>();
   const initialCards: Card[] = useMemo(() => {
     try {
@@ -124,7 +128,7 @@ export default function RevealScreen() {
 
   return (
     <View style={styles.flex}>
-      <LinearGradient colors={["#2b2013", "#1c140c", "#0e0a06"]} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={colors.backgroundGradient} style={StyleSheet.absoluteFill} />
       <View style={styles.pageLines} pointerEvents="none">
         {Array.from({ length: 14 }).map((_, i) => (
           <View key={i} style={[styles.pageLine, { opacity: 0.05 + (i % 3) * 0.02 }]} />
@@ -133,7 +137,7 @@ export default function RevealScreen() {
 
       <SafeAreaView style={styles.safeArea}>
         <Pressable style={styles.closeButton} onPress={() => router.back()}>
-          <Ionicons name="close" size={26} color="#f3ead9" />
+          <Ionicons name="close" size={26} color={colors.text} />
         </Pressable>
 
         {cards.length === 0 ? (
@@ -149,7 +153,7 @@ export default function RevealScreen() {
                 disabled={translationLoading}
               />
               {translationLoading ? (
-                <ActivityIndicator size="small" color="#d8b46a" style={styles.translationSpinner} />
+                <ActivityIndicator size="small" color={colors.accent} style={styles.translationSpinner} />
               ) : null}
             </View>
             {translationError ? <Text style={styles.error}>{translationError}</Text> : null}
@@ -199,11 +203,11 @@ export default function RevealScreen() {
             <View style={styles.bottomArea}>
               {shareError ? <Text style={styles.error}>{shareError}</Text> : null}
               <Pressable style={styles.talkButton} onPress={handleTalkMore}>
-                <Ionicons name="chatbubble-ellipses-outline" size={18} color="#d8b46a" />
+                <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.accent} />
                 <Text style={styles.talkText}>Talk more about this</Text>
               </Pressable>
               <Pressable style={styles.shareButton} onPress={handleShare} disabled={sharing}>
-                <Ionicons name="share-outline" size={20} color="#1c1410" />
+                <Ionicons name="share-outline" size={20} color={colors.accentText} />
                 <Text style={styles.shareText}>{sharing ? "Preparing…" : "Share this verse"}</Text>
               </Pressable>
             </View>
@@ -214,59 +218,60 @@ export default function RevealScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: "#14100c" },
-  safeArea: { flex: 1 },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  emptyText: { color: "#c9bba7", fontSize: 15 },
-  pageLines: {
-    ...StyleSheet.absoluteFill,
-    justifyContent: "space-evenly",
-    paddingVertical: 60,
-  },
-  pageLine: { height: 1, backgroundColor: "#f3ead9", marginHorizontal: 32 },
-  closeButton: {
-    marginLeft: 20,
-    marginTop: 8,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(20,16,12,0.6)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  translationRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 12,
-  },
-  translationSpinner: { marginLeft: 4 },
-  hint: {
-    textAlign: "center",
-    color: "#9a8f83",
-    fontSize: 12,
-    marginTop: 10,
-    marginBottom: 14,
-    letterSpacing: 0.3,
-  },
-  carousel: { flex: 1 },
-  dots: { flexDirection: "row", justifyContent: "center", gap: 8, marginTop: 18 },
-  dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "#3a2e22" },
-  dotActive: { backgroundColor: "#d8b46a", width: 20 },
-  bottomArea: { alignItems: "center", gap: 10, marginTop: "auto", marginBottom: 24 },
-  error: { color: "#e07a5f", fontSize: 13 },
-  shareButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "#d8b46a",
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 999,
-  },
-  shareText: { fontWeight: "600", color: "#1c1410", fontSize: 15 },
-  talkButton: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 },
-  talkText: { color: "#d8b46a", fontSize: 14, fontWeight: "600" },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    flex: { flex: 1, backgroundColor: colors.background },
+    safeArea: { flex: 1 },
+    center: { flex: 1, alignItems: "center", justifyContent: "center" },
+    emptyText: { color: colors.textMuted, fontSize: 15 },
+    pageLines: {
+      ...StyleSheet.absoluteFill,
+      justifyContent: "space-evenly",
+      paddingVertical: 60,
+    },
+    pageLine: { height: 1, backgroundColor: colors.text, marginHorizontal: 32 },
+    closeButton: {
+      marginLeft: 20,
+      marginTop: 8,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: colors.surface,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    translationRow: {
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      gap: 8,
+      marginTop: 12,
+    },
+    translationSpinner: { marginLeft: 4 },
+    hint: {
+      textAlign: "center",
+      color: colors.textMuted,
+      fontSize: 12,
+      marginTop: 10,
+      marginBottom: 14,
+      letterSpacing: 0.3,
+    },
+    carousel: { flex: 1 },
+    dots: { flexDirection: "row", justifyContent: "center", gap: 8, marginTop: 18 },
+    dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.border },
+    dotActive: { backgroundColor: colors.accent, width: 20 },
+    bottomArea: { alignItems: "center", gap: 10, marginTop: "auto", marginBottom: 24 },
+    error: { color: colors.danger, fontSize: 13 },
+    shareButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      backgroundColor: colors.accent,
+      paddingHorizontal: 24,
+      paddingVertical: 14,
+      borderRadius: 999,
+    },
+    shareText: { fontWeight: "600", color: colors.accentText, fontSize: 15 },
+    talkButton: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 },
+    talkText: { color: colors.accent, fontSize: 14, fontWeight: "600" },
+  });

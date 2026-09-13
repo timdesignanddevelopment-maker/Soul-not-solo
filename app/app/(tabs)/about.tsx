@@ -1,4 +1,7 @@
+import { useMemo } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
+import { useTheme } from "@/lib/ThemeContext";
+import type { ThemeColors } from "@/lib/theme";
 import { FONT_SCRIPT, FONT_SERIF, FONT_SERIF_ITALIC } from "@/lib/fonts";
 
 const DEDICATION_PARAGRAPHS = [
@@ -35,6 +38,8 @@ const DEDICATION_PARAGRAPHS = [
 
 // Dedication + about page.
 export default function AboutScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <ScrollView style={styles.flex} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Dedication</Text>
@@ -46,20 +51,21 @@ export default function AboutScreen() {
 
       <Text style={[styles.title, styles.sectionSpacing]}>About Soul Not Solo</Text>
       <Text style={styles.body}>
-        Tell it what you're going through — in your own words, typed or spoken — and it finds a
-        real passage of Scripture suited to your situation, brings it to life on screen, and lets
-        you carry it with you or share it with someone who needs it too. You can also read
-        straight through any book of the Bible any time, from the Read tab.
+        Tell it what you're going through — in your own words — and it finds a real passage of
+        Scripture suited to your situation, brings it to life on screen, and lets you carry it with
+        you or share it with someone who needs it too. You can also read straight through any book
+        of the Bible any time, from the Read tab.
       </Text>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: "#14100c" },
-  content: { padding: 24, paddingBottom: 60 },
-  title: { fontFamily: FONT_SCRIPT, fontSize: 40, color: "#d8b46a", marginBottom: 16, textAlign: "center" },
-  sectionSpacing: { marginTop: 40 },
-  body: { fontFamily: FONT_SERIF, fontSize: 18, lineHeight: 27, color: "#c9bba7", marginBottom: 16 },
-  closingLine: { fontFamily: FONT_SERIF_ITALIC, fontSize: 19, textAlign: "center", color: "#d8b46a" },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    flex: { flex: 1, backgroundColor: colors.background },
+    content: { padding: 24, paddingBottom: 60 },
+    title: { fontFamily: FONT_SCRIPT, fontSize: 40, color: colors.accent, marginBottom: 16, textAlign: "center" },
+    sectionSpacing: { marginTop: 40 },
+    body: { fontFamily: FONT_SERIF, fontSize: 18, lineHeight: 27, color: colors.textMuted, marginBottom: 16 },
+    closingLine: { fontFamily: FONT_SERIF_ITALIC, fontSize: 19, textAlign: "center", color: colors.accent },
+  });

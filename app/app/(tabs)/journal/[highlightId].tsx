@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -6,10 +6,14 @@ import { ParchmentPaper } from "@/components/ParchmentPaper";
 import { getHighlight, removeHighlight, type Highlight } from "@/lib/highlights";
 import { deleteVerseNote, getVerseNote, saveVerseNote } from "@/lib/journal";
 import { confirmAction } from "@/lib/confirm";
+import { useTheme } from "@/lib/ThemeContext";
+import type { ThemeColors } from "@/lib/theme";
 import { FONT_SERIF, FONT_SERIF_BOLD, FONT_SERIF_ITALIC } from "@/lib/fonts";
 
 export default function VerseJournalScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { highlightId } = useLocalSearchParams<{ highlightId: string }>();
   const id = decodeURIComponent(highlightId ?? "");
 
@@ -78,7 +82,7 @@ export default function VerseJournalScreen() {
             style={styles.notesInput}
             multiline
             placeholder="What does this verse mean to you? Write your thoughts here…"
-            placeholderTextColor="#8a7d6d"
+            placeholderTextColor={colors.parchmentTextMuted}
             value={notes}
             onChangeText={handleChangeNotes}
             textAlignVertical="top"
@@ -86,7 +90,7 @@ export default function VerseJournalScreen() {
         </ParchmentPaper>
 
         <Pressable style={styles.removeButton} onPress={handleRemoveHighlight}>
-          <Ionicons name="trash-outline" size={16} color="#e07a5f" />
+          <Ionicons name="trash-outline" size={16} color={colors.danger} />
           <Text style={styles.removeText}>Remove highlight</Text>
         </Pressable>
       </ScrollView>
@@ -94,22 +98,23 @@ export default function VerseJournalScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: "#14100c" },
-  center: { alignItems: "center", justifyContent: "center" },
-  missingText: { fontFamily: FONT_SERIF_ITALIC, color: "#8a7d6d", fontSize: 15 },
-  content: { padding: 20, paddingBottom: 60, gap: 16 },
-  versePaper: {},
-  reference: { fontFamily: FONT_SERIF_BOLD, fontSize: 15, color: "#6b5535", marginBottom: 8 },
-  verseText: { fontFamily: FONT_SERIF_ITALIC, fontSize: 18, lineHeight: 26, color: "#3a2e18" },
-  notesPaper: { minHeight: 320 },
-  notesInput: {
-    fontFamily: FONT_SERIF,
-    fontSize: 17,
-    lineHeight: 26,
-    color: "#3a2e18",
-    minHeight: 280,
-  },
-  removeButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10 },
-  removeText: { fontFamily: FONT_SERIF, color: "#e07a5f", fontSize: 14 },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    flex: { flex: 1, backgroundColor: colors.background },
+    center: { alignItems: "center", justifyContent: "center" },
+    missingText: { fontFamily: FONT_SERIF_ITALIC, color: colors.textMuted, fontSize: 15 },
+    content: { padding: 20, paddingBottom: 60, gap: 16 },
+    versePaper: {},
+    reference: { fontFamily: FONT_SERIF_BOLD, fontSize: 15, color: colors.parchmentTextMuted, marginBottom: 8 },
+    verseText: { fontFamily: FONT_SERIF_ITALIC, fontSize: 18, lineHeight: 26, color: colors.parchmentText },
+    notesPaper: { minHeight: 320 },
+    notesInput: {
+      fontFamily: FONT_SERIF,
+      fontSize: 17,
+      lineHeight: 26,
+      color: colors.parchmentText,
+      minHeight: 280,
+    },
+    removeButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10 },
+    removeText: { fontFamily: FONT_SERIF, color: colors.danger, fontSize: 14 },
+  });

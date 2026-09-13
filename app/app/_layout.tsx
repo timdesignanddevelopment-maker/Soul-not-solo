@@ -10,6 +10,8 @@ import {
   CormorantGaramond_600SemiBold,
 } from "@expo-google-fonts/cormorant-garamond";
 import { GreatVibes_400Regular } from "@expo-google-fonts/great-vibes";
+import { ThemeProvider } from "@/lib/ThemeContext";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -36,18 +38,21 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" />
-        {/* gestureEnabled: false — reveal has its own horizontal swipe (the
-            verse card carousel), which otherwise fights with the stack
-            navigator's swipe-to-go-back gesture: a swipe that misses a card
-            could get read as "go back" and dump you straight to Home instead
-            of just missing the card. Going back is only via the explicit
-            close button now. */}
-        <Stack.Screen name="reveal" options={{ presentation: "fullScreenModal", gestureEnabled: false }} />
-        <Stack.Screen name="conversation" options={{ presentation: "modal" }} />
-      </Stack>
-    </GestureHandlerRootView>
+    <ThemeProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(tabs)" />
+          {/* gestureEnabled: false — reveal has its own horizontal swipe (the
+              verse card carousel), which otherwise fights with the stack
+              navigator's swipe-to-go-back gesture: a swipe that misses a card
+              could get read as "go back" and dump you straight to Home instead
+              of just missing the card. Going back is only via the explicit
+              close button now. */}
+          <Stack.Screen name="reveal" options={{ presentation: "fullScreenModal", gestureEnabled: false }} />
+          <Stack.Screen name="conversation" options={{ presentation: "modal" }} />
+        </Stack>
+        <ThemeToggle />
+      </GestureHandlerRootView>
+    </ThemeProvider>
   );
 }

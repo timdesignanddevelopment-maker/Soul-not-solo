@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -13,6 +13,8 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { continueConversation, type ConversationTurn } from "@/lib/api";
+import { useTheme } from "@/lib/ThemeContext";
+import type { ThemeColors } from "@/lib/theme";
 import { FONT_SCRIPT, FONT_SERIF, FONT_SERIF_BOLD } from "@/lib/fonts";
 
 interface DisplayMessage {
@@ -22,6 +24,8 @@ interface DisplayMessage {
 
 export default function ConversationScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const params = useLocalSearchParams<{
     situation: string;
     reference: string;
@@ -90,7 +94,7 @@ export default function ConversationScreen() {
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <View style={styles.header}>
         <Pressable style={styles.closeButton} onPress={() => router.back()}>
-          <Ionicons name="close" size={24} color="#f3ead9" />
+          <Ionicons name="close" size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Talk it through</Text>
         <View style={styles.closeButton} />
@@ -114,7 +118,7 @@ export default function ConversationScreen() {
 
         {loading ? (
           <View style={[styles.bubble, styles.bubbleAssistant]}>
-            <ActivityIndicator color="#6b5535" />
+            <ActivityIndicator color={colors.parchmentTextMuted} />
           </View>
         ) : null}
 
@@ -123,7 +127,7 @@ export default function ConversationScreen() {
             <Text style={styles.error}>{error}</Text>
             {lastFailedMessage ? (
               <Pressable style={styles.retryButton} onPress={retry} hitSlop={10}>
-                <Ionicons name="refresh" size={16} color="#d8b46a" />
+                <Ionicons name="refresh" size={16} color={colors.accent} />
               </Pressable>
             ) : null}
           </View>
@@ -146,7 +150,7 @@ export default function ConversationScreen() {
         <TextInput
           style={styles.input}
           placeholder="How? This isn't helping. Ask anything..."
-          placeholderTextColor="#8a7d6d"
+          placeholderTextColor={colors.textMuted}
           value={input}
           onChangeText={setInput}
           editable={!loading}
@@ -157,96 +161,97 @@ export default function ConversationScreen() {
           disabled={!input.trim() || loading}
           onPress={() => send(input)}
         >
-          <Ionicons name="arrow-up" size={20} color="#1c1410" />
+          <Ionicons name="arrow-up" size={20} color={colors.accentText} />
         </Pressable>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: "#14100c" },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingTop: 56,
-    paddingHorizontal: 12,
-    paddingBottom: 12,
-  },
-  closeButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
-  headerTitle: { fontFamily: FONT_SCRIPT, fontSize: 26, color: "#d8b46a" },
-  messages: { padding: 16, gap: 12 },
-  bubble: { maxWidth: "85%", borderRadius: 16, padding: 14 },
-  bubbleAssistant: {
-    alignSelf: "flex-start",
-    backgroundColor: "#eeddb8",
-    borderBottomLeftRadius: 4,
-  },
-  bubbleUser: {
-    alignSelf: "flex-end",
-    backgroundColor: "#3a2e22",
-    borderBottomRightRadius: 4,
-  },
-  bubbleTextAssistant: { fontFamily: FONT_SERIF, fontSize: 17, lineHeight: 24, color: "#3a2e18" },
-  bubbleTextUser: { fontFamily: FONT_SERIF, fontSize: 17, lineHeight: 24, color: "#f3ead9" },
-  errorRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    marginTop: 8,
-  },
-  error: { color: "#e07a5f", fontSize: 13, textAlign: "center" },
-  retryButton: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 1,
-    borderColor: "#a9873f",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  suggestions: { paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
-  chip: {
-    maxWidth: 260,
-    borderWidth: 1,
-    borderColor: "#a9873f",
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    marginRight: 8,
-    backgroundColor: "rgba(216, 180, 106, 0.1)",
-  },
-  chipText: { fontFamily: FONT_SERIF_BOLD, fontSize: 13, color: "#d8b46a" },
-  inputRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 10,
-    padding: 16,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#3a2e22",
-  },
-  input: {
-    flex: 1,
-    maxHeight: 100,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#3a2e22",
-    backgroundColor: "#1f1710",
-    color: "#f3ead9",
-    fontFamily: FONT_SERIF,
-    fontSize: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#d8b46a",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sendButtonDisabled: { opacity: 0.4 },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    flex: { flex: 1, backgroundColor: colors.background },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingTop: 56,
+      paddingHorizontal: 12,
+      paddingBottom: 12,
+    },
+    closeButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+    headerTitle: { fontFamily: FONT_SCRIPT, fontSize: 26, color: colors.accent },
+    messages: { padding: 16, gap: 12 },
+    bubble: { maxWidth: "85%", borderRadius: 16, padding: 14 },
+    bubbleAssistant: {
+      alignSelf: "flex-start",
+      backgroundColor: colors.parchment[1],
+      borderBottomLeftRadius: 4,
+    },
+    bubbleUser: {
+      alignSelf: "flex-end",
+      backgroundColor: colors.text,
+      borderBottomRightRadius: 4,
+    },
+    bubbleTextAssistant: { fontFamily: FONT_SERIF, fontSize: 17, lineHeight: 24, color: colors.parchmentText },
+    bubbleTextUser: { fontFamily: FONT_SERIF, fontSize: 17, lineHeight: 24, color: colors.background },
+    errorRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      marginTop: 8,
+    },
+    error: { color: colors.danger, fontSize: 13, textAlign: "center" },
+    retryButton: {
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      borderWidth: 1,
+      borderColor: colors.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    suggestions: { paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
+    chip: {
+      maxWidth: 260,
+      borderWidth: 1,
+      borderColor: colors.accent,
+      borderRadius: 999,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      marginRight: 8,
+      backgroundColor: colors.surface,
+    },
+    chipText: { fontFamily: FONT_SERIF_BOLD, fontSize: 13, color: colors.accent },
+    inputRow: {
+      flexDirection: "row",
+      alignItems: "flex-end",
+      gap: 10,
+      padding: 16,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+    },
+    input: {
+      flex: 1,
+      maxHeight: 100,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      color: colors.text,
+      fontFamily: FONT_SERIF,
+      fontSize: 16,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+    },
+    sendButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: colors.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    sendButtonDisabled: { opacity: 0.4 },
+  });

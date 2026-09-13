@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -8,17 +8,20 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  View,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { matchVerse } from "@/lib/api";
 import { fetchVerseText } from "@/lib/bibleApi";
 import { saveRequest } from "@/lib/verseHistory";
+import { useTheme } from "@/lib/ThemeContext";
+import type { ThemeColors } from "@/lib/theme";
 import { FONT_SCRIPT, FONT_SERIF_BOLD, FONT_SERIF_ITALIC } from "@/lib/fonts";
 
 export default function InputScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [situation, setSituation] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +82,7 @@ export default function InputScreen() {
         <TextInput
           style={styles.input}
           placeholder="There's something weighing on my heart lately..."
-          placeholderTextColor="#8a7d6d"
+          placeholderTextColor={colors.textMuted}
           value={situation}
           onChangeText={setSituation}
           multiline
@@ -94,11 +97,11 @@ export default function InputScreen() {
           onPress={() => handleSubmit(situation)}
         >
           {loading ? (
-            <ActivityIndicator color="#1c1410" />
+            <ActivityIndicator color={colors.accentText} />
           ) : (
             <>
               <Text style={styles.submitText}>Find my verses</Text>
-              <Ionicons name="arrow-forward" size={18} color="#1c1410" />
+              <Ionicons name="arrow-forward" size={18} color={colors.accentText} />
             </>
           )}
         </Pressable>
@@ -110,52 +113,53 @@ export default function InputScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: "#14100c" },
-  container: { flexGrow: 1, padding: 24, justifyContent: "center", gap: 16 },
-  wordmark: {
-    fontFamily: FONT_SCRIPT,
-    fontSize: 42,
-    color: "#d8b46a",
-    textAlign: "center",
-    marginBottom: 4,
-  },
-  title: { fontFamily: FONT_SERIF_BOLD, fontSize: 28, color: "#f3ead9", textAlign: "center" },
-  subtitle: {
-    fontFamily: FONT_SERIF_ITALIC,
-    fontSize: 16,
-    color: "#b7a999",
-    lineHeight: 22,
-    textAlign: "center",
-  },
-  input: {
-    minHeight: 120,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#3a2e22",
-    backgroundColor: "#1f1710",
-    color: "#f3ead9",
-    padding: 16,
-    fontSize: 16,
-    textAlignVertical: "top",
-  },
-  error: { color: "#e07a5f", fontSize: 13 },
-  slowNotice: {
-    fontFamily: FONT_SERIF_ITALIC,
-    color: "#9a8f83",
-    fontSize: 13,
-    textAlign: "center",
-  },
-  submitButton: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "#d8b46a",
-    borderRadius: 999,
-    paddingVertical: 14,
-    marginTop: 4,
-  },
-  submitButtonDisabled: { opacity: 0.5 },
-  submitText: { fontFamily: FONT_SERIF_BOLD, fontSize: 16, color: "#1c1410" },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    flex: { flex: 1, backgroundColor: colors.background },
+    container: { flexGrow: 1, padding: 24, justifyContent: "center", gap: 16 },
+    wordmark: {
+      fontFamily: FONT_SCRIPT,
+      fontSize: 42,
+      color: colors.accent,
+      textAlign: "center",
+      marginBottom: 4,
+    },
+    title: { fontFamily: FONT_SERIF_BOLD, fontSize: 28, color: colors.text, textAlign: "center" },
+    subtitle: {
+      fontFamily: FONT_SERIF_ITALIC,
+      fontSize: 16,
+      color: colors.textMuted,
+      lineHeight: 22,
+      textAlign: "center",
+    },
+    input: {
+      minHeight: 120,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      color: colors.text,
+      padding: 16,
+      fontSize: 16,
+      textAlignVertical: "top",
+    },
+    error: { color: colors.danger, fontSize: 13 },
+    slowNotice: {
+      fontFamily: FONT_SERIF_ITALIC,
+      color: colors.textMuted,
+      fontSize: 13,
+      textAlign: "center",
+    },
+    submitButton: {
+      flexDirection: "row",
+      justifyContent: "center",
+      alignItems: "center",
+      gap: 8,
+      backgroundColor: colors.accent,
+      borderRadius: 999,
+      paddingVertical: 14,
+      marginTop: 4,
+    },
+    submitButtonDisabled: { opacity: 0.5 },
+    submitText: { fontFamily: FONT_SERIF_BOLD, fontSize: 16, color: colors.accentText },
+  });

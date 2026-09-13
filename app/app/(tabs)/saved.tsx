@@ -1,8 +1,10 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { loadHistory, deleteRequest, type SavedRequest } from "@/lib/verseHistory";
+import { useTheme } from "@/lib/ThemeContext";
+import type { ThemeColors } from "@/lib/theme";
 import { FONT_SCRIPT, FONT_SERIF, FONT_SERIF_ITALIC } from "@/lib/fonts";
 
 function formatWhen(timestamp: number): string {
@@ -18,6 +20,8 @@ function formatWhen(timestamp: number): string {
 
 export default function SavedScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [history, setHistory] = useState<SavedRequest[]>([]);
   const [loaded, setLoaded] = useState(false);
 
@@ -77,7 +81,7 @@ export default function SavedScreen() {
               <Text style={styles.when}>{formatWhen(item.createdAt)}</Text>
             </View>
             <Pressable hitSlop={12} onPress={() => removeEntry(item.id)}>
-              <Ionicons name="trash-outline" size={18} color="#8a7d6d" />
+              <Ionicons name="trash-outline" size={18} color={colors.textMuted} />
             </Pressable>
           </Pressable>
         )}
@@ -86,30 +90,31 @@ export default function SavedScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: "#14100c" },
-  list: { padding: 20, paddingBottom: 40, flexGrow: 1 },
-  header: { fontFamily: FONT_SCRIPT, fontSize: 40, color: "#d8b46a", marginBottom: 16, textAlign: "center" },
-  empty: {
-    fontFamily: FONT_SERIF_ITALIC,
-    color: "#8a7d6d",
-    fontSize: 15,
-    textAlign: "center",
-    marginTop: 40,
-    lineHeight: 22,
-    paddingHorizontal: 8,
-  },
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#3a2e22",
-    gap: 12,
-  },
-  rowText: { flex: 1 },
-  situation: { fontFamily: FONT_SERIF, fontSize: 17, color: "#f3ead9" },
-  meta: { fontFamily: FONT_SERIF_ITALIC, fontSize: 13, color: "#d8b46a", marginTop: 2 },
-  when: { fontSize: 11, color: "#6b5f52", marginTop: 4 },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    flex: { flex: 1, backgroundColor: colors.background },
+    list: { padding: 20, paddingBottom: 40, flexGrow: 1 },
+    header: { fontFamily: FONT_SCRIPT, fontSize: 40, color: colors.accent, marginBottom: 16, textAlign: "center" },
+    empty: {
+      fontFamily: FONT_SERIF_ITALIC,
+      color: colors.textMuted,
+      fontSize: 15,
+      textAlign: "center",
+      marginTop: 40,
+      lineHeight: 22,
+      paddingHorizontal: 8,
+    },
+    row: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: 14,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+      gap: 12,
+    },
+    rowText: { flex: 1 },
+    situation: { fontFamily: FONT_SERIF, fontSize: 17, color: colors.text },
+    meta: { fontFamily: FONT_SERIF_ITALIC, fontSize: 13, color: colors.accent, marginTop: 2 },
+    when: { fontSize: 11, color: colors.textMuted, marginTop: 4 },
+  });

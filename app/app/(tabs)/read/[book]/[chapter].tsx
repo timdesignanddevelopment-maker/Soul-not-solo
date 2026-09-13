@@ -1,14 +1,26 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { BIBLE_BOOKS } from "@/lib/bibleIndex";
 import { fetchChapter, type BiblePassage } from "@/lib/bibleApi";
 import { getSelectedTranslationId } from "@/lib/translations";
-import { highlightId as makeHighlightId, loadHighlights, addHighlight, type Highlight } from "@/lib/highlights";
+import {
+  loadHighlights,
+  addOrExtendHighlight,
+  findHighlightForVerse,
+  HIGHLIGHT_COLORS,
+  HIGHLIGHT_PALETTE,
+  type Highlight,
+  type HighlightColor,
+} from "@/lib/highlights";
+import { useTheme } from "@/lib/ThemeContext";
+import type { ThemeColors } from "@/lib/theme";
 import { FONT_SCRIPT, FONT_SERIF, FONT_SERIF_BOLD } from "@/lib/fonts";
 
 export default function ChapterReaderScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { book, chapter } = useLocalSearchParams<{ book: string; chapter: string }>();
   const bookInfo = BIBLE_BOOKS.find((b) => b.slug === book);
   const chapterNum = Number(chapter);
@@ -16,7 +28,8 @@ export default function ChapterReaderScreen() {
   const [passage, setPassage] = useState<BiblePassage | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [highlightedIds, setHighlightedIds] = useState<Set<string>>(new Set());
+  const [highlights, setHighlights] = useState<Highlight[]>([]);
+  const [selectedColor, setSelectedColor] = useState<HighlightColor>("yellow");
 
   useEffect(() => {
     if (!bookInfo) return;
@@ -45,35 +58,29 @@ export default function ChapterReaderScreen() {
     let cancelled = false;
     loadHighlights().then((all) => {
       if (cancelled) return;
-      const ids = all
-        .filter((h) => h.bookSlug === bookInfo.slug && h.chapter === chapterNum)
-        .map((h) => h.id);
-      setHighlightedIds(new Set(ids));
+      setHighlights(all.filter((h) => h.bookSlug === bookInfo.slug && h.chapter === chapterNum));
     });
     return () => {
       cancelled = true;
     };
   }, [book, chapter]);
 
-  async function handleVersePress(verseNum: number, text: string) {
-    if (!bookInfo) return;
-    const id = makeHighlightId(bookInfo.slug, chapterNum, verseNum);
-    if (highlightedIds.has(id)) {
-      router.push(`/journal/${encodeURIComponent(id)}`);
+  async function handleVersePress(verseNum: number) {
+    if (!bookInfo || !passage) return;
+    const existing = findHighlightForVerse(highlights, bookInfo.slug, chapterNum, verseNum);
+    if (existing) {
+      router.push(`/journal/${encodeURIComponent(existing.id)}`);
       return;
     }
-    const highlight: Highlight = {
-      id,
+    const updatedAll = await addOrExtendHighlight({
       bookSlug: bookInfo.slug,
       bookName: bookInfo.name,
       chapter: chapterNum,
-      verse: verseNum,
-      text: text.trim(),
-      reference: `${bookInfo.name} ${chapterNum}:${verseNum}`,
-      createdAt: Date.now(),
-    };
-    await addHighlight(highlight);
-    setHighlightedIds((prev) => new Set(prev).add(id));
+      verseNum,
+      color: selectedColor,
+      chapterVerses: passage.verses.map((v) => ({ verse: v.verse, text: v.text })),
+    });
+    setHighlights(updatedAll.filter((h) => h.bookSlug === bookInfo.slug && h.chapter === chapterNum));
   }
 
   if (!bookInfo) {
@@ -93,7 +100,7 @@ export default function ChapterReaderScreen() {
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator color="#d8b46a" />
+          <ActivityIndicator color={colors.accent} />
         </View>
       ) : error ? (
         <View style={styles.center}>
@@ -104,18 +111,21 @@ export default function ChapterReaderScreen() {
           <Text style={styles.chapterTitle}>
             {bookInfo.name} {chapterNum}
           </Text>
-          <Text style={styles.hint}>Tap a verse to highlight it • tap again to open your journal note</Text>
+          <Text style={styles.hint}>
+            Tap a verse to highlight it in the selected color • tap a highlighted verse to open your
+            journal note
+          </Text>
           <Text style={styles.body}>
             {passage?.verses.map((v) => {
-              const id = makeHighlightId(bookInfo.slug, chapterNum, v.verse);
-              const isHighlighted = highlightedIds.has(id);
+              const highlight = findHighlightForVerse(highlights, bookInfo.slug, chapterNum, v.verse);
+              const palette = highlight ? HIGHLIGHT_PALETTE[highlight.color] : null;
               return (
                 <Text
                   key={v.verse}
-                  onPress={() => handleVersePress(v.verse, v.text)}
-                  style={isHighlighted ? styles.verseHighlighted : undefined}
+                  onPress={() => handleVersePress(v.verse)}
+                  style={palette ? { backgroundColor: palette.background, color: palette.text } : undefined}
                 >
-                  <Text style={styles.verseNum}>{v.verse} </Text>
+                  <Text style={[styles.verseNum, palette && { color: palette.text }]}>{v.verse} </Text>
                   {v.text}
                   {"  "}
                 </Text>
@@ -124,6 +134,21 @@ export default function ChapterReaderScreen() {
           </Text>
         </ScrollView>
       )}
+
+      <View style={styles.colorPicker}>
+        {HIGHLIGHT_COLORS.map((color) => (
+          <Pressable
+            key={color}
+            onPress={() => setSelectedColor(color)}
+            hitSlop={4}
+            style={[
+              styles.swatch,
+              { backgroundColor: HIGHLIGHT_PALETTE[color].swatch },
+              selectedColor === color && styles.swatchActive,
+            ]}
+          />
+        ))}
+      </View>
 
       <View style={styles.nav}>
         <Pressable
@@ -145,31 +170,50 @@ export default function ChapterReaderScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: "#14100c" },
-  center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  content: { padding: 24, paddingBottom: 100 },
-  chapterTitle: { fontFamily: FONT_SCRIPT, fontSize: 34, color: "#d8b46a", marginBottom: 4, textAlign: "center" },
-  hint: {
-    fontFamily: FONT_SERIF,
-    fontSize: 12,
-    color: "#8a7d6d",
-    textAlign: "center",
-    marginBottom: 16,
-  },
-  body: { fontFamily: FONT_SERIF, fontSize: 19, lineHeight: 30, color: "#e5dac6" },
-  verseNum: { fontFamily: FONT_SERIF_BOLD, fontSize: 13, color: "#d8b46a" },
-  verseHighlighted: { backgroundColor: "rgba(216, 180, 106, 0.28)" },
-  error: { color: "#e07a5f", fontSize: 15, padding: 24, textAlign: "center" },
-  nav: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    padding: 16,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#3a2e22",
-    backgroundColor: "#14100c",
-  },
-  navButton: { paddingVertical: 10, paddingHorizontal: 16 },
-  navButtonDisabled: { opacity: 0.3 },
-  navText: { fontFamily: FONT_SERIF_BOLD, color: "#d8b46a", fontSize: 16 },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    flex: { flex: 1, backgroundColor: colors.background },
+    center: { flex: 1, alignItems: "center", justifyContent: "center" },
+    content: { padding: 24, paddingRight: 56, paddingBottom: 100 },
+    chapterTitle: { fontFamily: FONT_SCRIPT, fontSize: 34, color: colors.accent, marginBottom: 4, textAlign: "center" },
+    hint: {
+      fontFamily: FONT_SERIF,
+      fontSize: 12,
+      color: colors.textMuted,
+      textAlign: "center",
+      marginBottom: 16,
+    },
+    body: { fontFamily: FONT_SERIF, fontSize: 19, lineHeight: 30, color: colors.text },
+    verseNum: { fontFamily: FONT_SERIF_BOLD, fontSize: 13, color: colors.accent },
+    error: { color: colors.danger, fontSize: 15, padding: 24, textAlign: "center" },
+    colorPicker: {
+      position: "absolute",
+      right: 10,
+      top: "22%",
+      gap: 12,
+      padding: 8,
+      borderRadius: 20,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    swatch: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      borderWidth: 2,
+      borderColor: "transparent",
+    },
+    swatchActive: { borderColor: colors.text },
+    nav: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      padding: 16,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    navButton: { paddingVertical: 10, paddingHorizontal: 16 },
+    navButtonDisabled: { opacity: 0.3 },
+    navText: { fontFamily: FONT_SERIF_BOLD, color: colors.accent, fontSize: 16 },
+  });
