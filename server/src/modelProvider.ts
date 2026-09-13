@@ -17,10 +17,21 @@ export function getModelProvider(): "nim" | "anthropic" {
   return process.env.MODEL_PROVIDER === "anthropic" ? "anthropic" : "nim";
 }
 
+// Neither SDK's default timeout is acceptable for a user-facing request
+// (both default to several minutes) — if NVIDIA's free endpoint ever stalls
+// under load, a request would hang far longer than anyone would wait,
+// looking exactly like the app was broken rather than just slow. This caps
+// it so a stalled call fails fast into the existing fallback-content path
+// instead of hanging indefinitely.
+const PROVIDER_TIMEOUT_MS = 25000;
+
 let anthropicClient: Anthropic | null = null;
 function getAnthropicClient(): Anthropic {
   if (!anthropicClient) {
-    anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    anthropicClient = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY,
+      timeout: PROVIDER_TIMEOUT_MS,
+    });
   }
   return anthropicClient;
 }
@@ -34,6 +45,8 @@ function getNimClient(): OpenAI {
     nimClient = new OpenAI({
       apiKey: process.env.NVIDIA_NIM_API_KEY ?? "unset",
       baseURL: "https://integrate.api.nvidia.com/v1",
+      timeout: PROVIDER_TIMEOUT_MS,
+      maxRetries: 1,
     });
   }
   return nimClient;
