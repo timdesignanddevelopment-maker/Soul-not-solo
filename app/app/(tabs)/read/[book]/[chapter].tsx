@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Pressable, PanResponder, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { BIBLE_BOOKS } from "@/lib/bibleIndex";
@@ -48,6 +48,21 @@ export default function ChapterReaderScreen() {
   const [activeWord, setActiveWord] = useState<string | null>(null);
   const [activeDefinition, setActiveDefinition] = useState<WordDefinition | null>(null);
   const [definitionLoading, setDefinitionLoading] = useState(false);
+
+  const hasPrev = bookInfo ? chapterNum > 1 : false;
+  const hasNext = bookInfo ? chapterNum < bookInfo.chapters : false;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderRelease: (_, { dx }) => {
+        const threshold = 50;
+        if (dx > threshold) handleSwipe("right");
+        else if (dx < -threshold) handleSwipe("left");
+      },
+    })
+  ).current;
 
   useEffect(() => {
     if (!bookInfo) return;
@@ -156,15 +171,25 @@ export default function ChapterReaderScreen() {
     await refreshHighlights();
   }
 
-  async function handleWordPress(verseNum: number, wordIndex: number, word: string, verseText: string) {
+  async function handleWordPress(verseNum: number, wordIndex: number, existingHighlightId: string | null) {
+    // Tapping a word starts/continues a highlight selection.
     if (selection && selection.verse === verseNum) {
       setSelection({ ...selection, end: wordIndex });
       return;
     }
     if (selection) {
       // A tap landed in a different verse while mid-selection — treat it as
-      // abandoning that selection and looking the word up as usual.
+      // abandoning that selection and starting fresh in this verse.
       setSelection(null);
+    }
+    setSelection({ verse: verseNum, anchor: wordIndex, end: wordIndex });
+  }
+
+  async function handleWordLongPress(verseNum: number, wordIndex: number, word: string, verseText: string, existingHighlightId: string | null) {
+    // Long-pressing a word defines it or saves an existing highlight to journal.
+    if (existingHighlightId) {
+      handleSaveToJournal(existingHighlightId);
+      return;
     }
     setActiveWord(word);
     setActiveDefinition(null);
@@ -177,12 +202,12 @@ export default function ChapterReaderScreen() {
     }
   }
 
-  function handleWordLongPress(verseNum: number, wordIndex: number, existingHighlightId: string | null) {
-    if (existingHighlightId) {
-      handleSaveToJournal(existingHighlightId);
-      return;
+  function handleSwipe(direction: "left" | "right") {
+    if (direction === "left" && hasNext) {
+      router.setParams({ chapter: String(chapterNum + 1) });
+    } else if (direction === "right" && hasPrev) {
+      router.setParams({ chapter: String(chapterNum - 1) });
     }
-    setSelection({ verse: verseNum, anchor: wordIndex, end: wordIndex });
   }
 
   if (!bookInfo) {
@@ -193,11 +218,8 @@ export default function ChapterReaderScreen() {
     );
   }
 
-  const hasPrev = chapterNum > 1;
-  const hasNext = chapterNum < bookInfo.chapters;
-
   return (
-    <View style={styles.flex}>
+    <View style={styles.flex} {...panResponder.panHandlers}>
       <Stack.Screen options={{ title: `${bookInfo.name} ${chapterNum}` }} />
 
       {loading ? (
@@ -215,8 +237,8 @@ export default function ChapterReaderScreen() {
           </Text>
           <Text style={styles.hint}>
             Tap a verse number to highlight it, tap again to remove it • long-press a highlight to
-            save it to your journal • long-press any word to pick out a phrase • tap a word to look
-            it up
+            save it to your journal • tap a word to start highlighting, tap again to end • long-press
+            a word to define it
           </Text>
           {passage?.verses.map((v) => {
             const wholeVerse = findHighlightForVerse(highlights, bookInfo.slug, chapterNum, v.verse);
@@ -265,8 +287,8 @@ export default function ChapterReaderScreen() {
                     return (
                       <Text
                         key={i}
-                        onPress={() => handleWordPress(v.verse, idx, token.word!, v.text)}
-                        onLongPress={() => handleWordLongPress(v.verse, idx, partial?.id ?? wholeVerse?.id ?? null)}
+                        onPress={() => handleWordPress(v.verse, idx, partial?.id ?? wholeVerse?.id ?? null)}
+                        onLongPress={() => handleWordLongPress(v.verse, idx, token.word!, v.text, partial?.id ?? wholeVerse?.id ?? null)}
                         style={[wordStyle, isSelected && styles.selectingWord]}
                       >
                         {token.raw}
