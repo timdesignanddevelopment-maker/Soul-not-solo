@@ -249,6 +249,7 @@ export default function ChapterReaderScreen() {
             const selHi = isSelectingThisVerse ? Math.max(selection!.anchor, selection!.end) : -1;
 
             let wordIndex = -1;
+            const tokens = tokenizeVerse(v.text);
 
             return (
               <View key={v.verse} style={styles.verseBlock}>
@@ -260,41 +261,95 @@ export default function ChapterReaderScreen() {
                   >
                     {v.verse}{" "}
                   </Text>
-                  {tokenizeVerse(v.text).map((token, i) => {
-                    if (!token.word) {
-                      return (
-                        <Text key={i} style={wholePalette ? { backgroundColor: wholePalette.background, color: wholePalette.text } : undefined}>
+                  {(() => {
+                    const rendered = [];
+                    let i = 0;
+                    while (i < tokens.length) {
+                      const token = tokens[i];
+
+                      if (!token.word) {
+                        rendered.push(
+                          <Text key={i} style={wholePalette ? { backgroundColor: wholePalette.background, color: wholePalette.text } : undefined}>
+                            {token.raw}
+                          </Text>
+                        );
+                        i++;
+                        continue;
+                      }
+
+                      wordIndex += 1;
+                      const idx = wordIndex;
+                      const partial = partials.find((p) => idx >= p.startWord! && idx <= p.endWord!);
+                      const isSelected = isSelectingThisVerse && idx >= selLo && idx <= selHi;
+
+                      if (isSelected) {
+                        // Start collecting continuous selection
+                        let selectedText = token.raw;
+                        let j = i + 1;
+                        let nextWordIdx = idx;
+
+                        // Consume all following tokens until selection ends
+                        while (j < tokens.length) {
+                          const nextToken = tokens[j];
+                          if (!nextToken.word) {
+                            selectedText += nextToken.raw;
+                            j++;
+                            continue;
+                          }
+                          nextWordIdx++;
+                          if (isSelectingThisVerse && nextWordIdx >= selLo && nextWordIdx <= selHi) {
+                            selectedText += nextToken.raw;
+                            wordIndex = nextWordIdx;
+                            j++;
+                          } else {
+                            break;
+                          }
+                        }
+
+                        const previewPalette = HIGHLIGHT_PALETTE[selectedColor];
+                        rendered.push(
+                          <Text
+                            key={i}
+                            onPress={() => handleWordPress(v.verse, idx, partial?.id ?? wholeVerse?.id ?? null)}
+                            onLongPress={() => {
+                              const word = token.word!;
+                              handleWordLongPress(v.verse, idx, word, v.text, partial?.id ?? wholeVerse?.id ?? null);
+                            }}
+                            style={{
+                              backgroundColor: previewPalette.background,
+                              color: previewPalette.text,
+                              textDecorationLine: "underline",
+                            }}
+                          >
+                            {selectedText}
+                          </Text>
+                        );
+                        i = j;
+                        continue;
+                      }
+
+                      let wordStyle: { backgroundColor: string; color: string } | undefined;
+                      if (partial) {
+                        const p = HIGHLIGHT_PALETTE[partial.color];
+                        wordStyle = { backgroundColor: p.background, color: p.text };
+                      } else if (wholePalette) {
+                        wordStyle = { backgroundColor: wholePalette.background, color: wholePalette.text };
+                      }
+
+                      rendered.push(
+                        <Text
+                          key={i}
+                          onPress={() => handleWordPress(v.verse, idx, partial?.id ?? wholeVerse?.id ?? null)}
+                          onLongPress={() => handleWordLongPress(v.verse, idx, token.word!, v.text, partial?.id ?? wholeVerse?.id ?? null)}
+                          style={wordStyle}
+                        >
                           {token.raw}
                         </Text>
                       );
+                      i++;
                     }
-                    wordIndex += 1;
-                    const idx = wordIndex;
-                    const partial = partials.find((p) => idx >= p.startWord! && idx <= p.endWord!);
-                    const isSelected = isSelectingThisVerse && idx >= selLo && idx <= selHi;
-
-                    let wordStyle: { backgroundColor: string; color: string } | undefined;
-                    if (isSelected) {
-                      const previewPalette = HIGHLIGHT_PALETTE[selectedColor];
-                      wordStyle = { backgroundColor: previewPalette.background, color: previewPalette.text };
-                    } else if (partial) {
-                      const p = HIGHLIGHT_PALETTE[partial.color];
-                      wordStyle = { backgroundColor: p.background, color: p.text };
-                    } else if (wholePalette) {
-                      wordStyle = { backgroundColor: wholePalette.background, color: wholePalette.text };
-                    }
-
-                    return (
-                      <Text
-                        key={i}
-                        onPress={() => handleWordPress(v.verse, idx, partial?.id ?? wholeVerse?.id ?? null)}
-                        onLongPress={() => handleWordLongPress(v.verse, idx, token.word!, v.text, partial?.id ?? wholeVerse?.id ?? null)}
-                        style={[wordStyle, isSelected && styles.selectingWord]}
-                      >
-                        {token.raw}
-                      </Text>
-                    );
-                  })}
+                    return rendered;
+                  })()}
                   {"  "}
                 </Text>
 
